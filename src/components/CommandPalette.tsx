@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Search, FolderOpen, Terminal, Settings, Sun, Moon, RefreshCw, FileText } from "lucide-react";
 import { useUIStore } from "@/stores/ui";
 import { useRepoStore } from "@/stores/repo";
+import { useScmStore } from "@/scm/scmStore";
 import { commands } from "@/bindings";
 
 export interface PaletteCommand {
@@ -33,6 +34,7 @@ export const CommandPalette: React.FC = () => {
   } = useUIStore();
   const { setRepo, setLoading, setError } = useRepoStore();
 
+  const { stageAll, unstageAll, sync, fetch, pull, push, refreshStatus } = useScmStore();
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -70,6 +72,54 @@ export const CommandPalette: React.FC = () => {
         title: "Toggle Git Output",
         icon: Terminal,
         action: () => toggleGitOutput(),
+      },
+      {
+        id: "git-commit",
+        category: "Git",
+        title: "Commit",
+        action: () => setActiveActivity("changes"),
+      },
+      {
+        id: "git-stage-all",
+        category: "Git",
+        title: "Stage All Changes",
+        action: () => stageAll(),
+      },
+      {
+        id: "git-unstage-all",
+        category: "Git",
+        title: "Unstage All Changes",
+        action: () => unstageAll(),
+      },
+      {
+        id: "git-sync",
+        category: "Git",
+        title: "Sync (Pull & Push)",
+        action: () => sync(),
+      },
+      {
+        id: "git-fetch",
+        category: "Git",
+        title: "Fetch",
+        action: () => fetch(),
+      },
+      {
+        id: "git-pull",
+        category: "Git",
+        title: "Pull",
+        action: () => pull(),
+      },
+      {
+        id: "git-push",
+        category: "Git",
+        title: "Push",
+        action: () => push(),
+      },
+      {
+        id: "git-refresh",
+        category: "Git",
+        title: "Refresh Status",
+        action: () => refreshStatus(),
       },
       {
         id: "view-changes",
@@ -150,12 +200,18 @@ export const CommandPalette: React.FC = () => {
       } else if (e.key === "Escape" && isCommandPaletteOpen) {
         e.preventDefault();
         setCommandPaletteOpen(false);
+      } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        setActiveActivity("changes");
+      } else if (isCmdOrCtrl && e.shiftKey && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void sync();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isCommandPaletteOpen, setCommandPaletteOpen]);
+  }, [isCommandPaletteOpen, setActiveActivity, setCommandPaletteOpen, sync]);
 
   // Focus input when opened
   useEffect(() => {
