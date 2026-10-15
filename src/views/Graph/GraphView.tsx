@@ -16,7 +16,9 @@ import type {
   GraphFilter,
   GraphRow,
 } from "@/graph/types";
-import { type GraphDataSource, MockGraphDataSource } from "@/graph/dataSource";
+import { type GraphDataSource, MockGraphDataSource, TauriGraphDataSource } from "@/graph/dataSource";
+import { isMock } from "@/env";
+import { events } from "@/bindings";
 import { ROW_HEIGHT } from "@/graph/geometry";
 import { GraphCanvas } from "@/components/graph/GraphCanvas";
 import { RefsBadge } from "@/components/graph/RefsBadge";
@@ -113,10 +115,10 @@ export const GraphView: React.FC<GraphViewProps> = ({
   onOpenDiff,
   onAction,
 }) => {
-  const { setActiveActivity, openTab } = useUIStore();
+  const { setActiveActivity, openTab, selectedGraphSha, setSelectedGraphSha } = useUIStore();
 
   const [activeDataSource] = useState<GraphDataSource>(
-    () => propDataSource ?? new MockGraphDataSource(200000)
+    () => propDataSource ?? (isMock() ? new MockGraphDataSource(200000) : new TauriGraphDataSource())
   );
 
   const [commits, setCommits] = useState<CommitSummary[]>([]);
@@ -337,15 +339,49 @@ export const GraphView: React.FC<GraphViewProps> = ({
   };
 
   // Jump to commit by SHA (e.g. from parent click or reset)
-  const jumpToSha = (sha: string) => {
+  const jumpToSha = (sha: string): boolean => {
     const idx = commits.findIndex((c) => c.sha === sha);
     if (idx !== -1) {
       const targetIndex = isDirty ? idx + 1 : idx;
       virtualizer.scrollToIndex(targetIndex, { align: "center" });
       setSelectedSha(sha);
       activeDataSource.detail(sha).then(setDetail);
+      return true;
     }
+    return false;
   };
+
+  useEffect(() => {
+    if (selectedGraphSha) {
+      const found = jumpToSha(selectedGraphSha);
+      if (found) {
+        setSelectedGraphSha(null);
+      }
+    }
+  }, [selectedGraphSha, commits]);
+
+  // Subscribe to external repo watcher changes
+  useEffect(() => {
+    if (isMock()) return;
+    let active = true;
+    const unlistenRefsPromise = events.repoRefsChanged.listen(() => {
+      if (active) {
+        void loadInitialPage();
+      }
+    });
+    const unlistenStatusPromise = events.repoStatusChanged.listen(() => {
+      if (active) {
+        activeDataSource.isDirty?.().then((dirty: boolean) => {
+          if (active) setIsDirty(Boolean(dirty));
+        });
+      }
+    });
+    return () => {
+      active = false;
+      unlistenRefsPromise.then((u) => u());
+      unlistenStatusPromise.then((u) => u());
+    };
+  }, [activeDataSource, loadInitialPage]);
 
   // Go to HEAD
   const handleGoToHead = () => {

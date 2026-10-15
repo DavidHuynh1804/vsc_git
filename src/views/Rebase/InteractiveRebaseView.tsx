@@ -14,8 +14,10 @@ import {
 import { RebaseTodoEntry, RebaseAction } from "@/m3/types";
 import { useM3Store } from "@/m3/m3Store";
 import { useUIStore } from "@/stores/ui";
-import { validateRebaseTodo, moveEntry } from "./rebaseUtils";
+import { validateRebaseTodo, moveEntry, parseRebaseTodo } from "./rebaseUtils";
+import { commands, events } from "@/bindings";
 import { EditMessageDialog } from "./EditMessageDialog";
+import { isMock } from "@/env";
 
 export interface InteractiveRebaseViewProps {
   baseSha?: string;
@@ -51,18 +53,52 @@ export const InteractiveRebaseView: React.FC<InteractiveRebaseViewProps> = ({
   const [editingEntry, setEditingEntry] = useState<{ index: number; entry: RebaseTodoEntry } | null>(
     null
   );
+  const [promptId, setPromptId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!initialEntries || initialEntries.length === 0) {
-      if (m3DataSource.getRebaseTodo) {
-        const mockItems = m3DataSource.getRebaseTodo();
-        if (mockItems && mockItems.length > 0) {
-          setEntries(mockItems);
+    let active = true;
+    let unlisten: (() => void) | undefined;
+
+    const setup = async () => {
+      if (!isMock()) {
+        unlisten = await events.promptRequest.listen((event) => {
+          if (active && event.payload.kind === "sequence_editor") {
+            setPromptId(event.payload.id);
+            const parsed = parseRebaseTodo(event.payload.prompt);
+            if (parsed.length > 0) {
+              setEntries(parsed);
+            }
+          }
+        });
+      }
+
+      if (!initialEntries || initialEntries.length === 0) {
+        if (baseSha) {
+          try {
+            await m3DataSource.rebaseInteractive(baseSha);
+          } catch {
+            // Error is reported to toast by datasource
+          }
+        }
+        if (m3DataSource.getRebaseTodo) {
+          const mockItems = m3DataSource.getRebaseTodo();
+          if (mockItems && mockItems.length > 0 && active) {
+            setEntries(mockItems);
+          }
         }
       }
-    }
-  }, [initialEntries, m3DataSource]);
+    };
+
+    void setup();
+
+    return () => {
+      active = false;
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, [baseSha, initialEntries, m3DataSource]);
 
   const validation = validateRebaseTodo(entries);
 
@@ -116,7 +152,7 @@ export const InteractiveRebaseView: React.FC<InteractiveRebaseViewProps> = ({
       if (onStart) {
         await onStart(entries);
       } else {
-        await m3DataSource.submitRebaseTodo(entries);
+        await m3DataSource.submitRebaseTodo(entries, promptId ?? undefined);
       }
       closeTab("rebase-interactive");
     } finally {
@@ -125,6 +161,9 @@ export const InteractiveRebaseView: React.FC<InteractiveRebaseViewProps> = ({
   };
 
   const handleCancel = () => {
+    if (promptId) {
+      void commands.answerPrompt(promptId, null);
+    }
     if (onCancel) {
       onCancel();
     } else {

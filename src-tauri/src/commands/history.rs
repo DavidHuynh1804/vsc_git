@@ -126,14 +126,18 @@ pub fn submit_rebase_todo(
     _app: AppHandle,
     _window: Window,
     items: Vec<AppRebaseTodoEntry>,
+    prompt_id: String,
 ) -> Result<(), AppError> {
     let core_items: Vec<git_core::RebaseTodoEntry> = items.into_iter().map(Into::into).collect();
-    let _text = git_core::ops::serialize_rebase_todo(&core_items);
-    // Answer any pending sequence_editor prompt
-    let _prompts = crate::repo::ipc::get_pending_prompts();
-    // Answer the most recent prompt or all pending prompts with the serialized todo
-    // Note: in a typical flow, there is one active sequence_editor prompt waiting
-    // If answer_prompt was called with ID, that handles specific; this submits directly.
+    let text = git_core::ops::serialize_rebase_todo(&core_items);
+    let prompts = crate::repo::ipc::get_pending_prompts();
+    let answered = prompts.answer_prompt_by_id(&prompt_id, "sequence_editor", Some(text));
+    if !answered {
+        return Err(AppError::new(
+            ErrorKind::Internal,
+            format!("No active sequence_editor prompt found with ID '{prompt_id}'"),
+        ));
+    }
     Ok(())
 }
 
@@ -285,6 +289,6 @@ pub fn file_history(
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
     validate_path_in_repo(&session.root, &path)?;
-    let entries = git_core::ops::file_history(&cli, &session.root, &path, 100, 0)?;
+    let entries = git_core::ops::file_history(&cli, &session.root, &path, 0, 100)?;
     Ok(entries.into_iter().map(Into::into).collect())
 }

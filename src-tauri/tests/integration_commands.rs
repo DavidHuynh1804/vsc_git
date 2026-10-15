@@ -275,3 +275,157 @@ fn test_askpass_ipc_roundtrip_with_real_binary() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert_eq!(stdout.trim(), "secret_password_123");
 }
+
+#[test]
+fn test_history_and_blame() {
+    let dir = tempdir().expect("tempdir");
+    let repo_path = dir.path();
+    init_git_repo(repo_path);
+
+    let file_path = repo_path.join("story.txt");
+    fs::write(&file_path, "First line\n").unwrap();
+    Command::new("git")
+        .args(["add", "story.txt"])
+        .current_dir(repo_path)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["commit", "-m", "add story"])
+        .current_dir(repo_path)
+        .output()
+        .unwrap();
+
+    fs::write(&file_path, "First line\nSecond line\n").unwrap();
+    Command::new("git")
+        .args(["add", "story.txt"])
+        .current_dir(repo_path)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["commit", "-m", "expand story"])
+        .current_dir(repo_path)
+        .output()
+        .unwrap();
+
+    let cli = git_core::GitCli::new("git");
+    let history =
+        git_core::ops::file_history(&cli, repo_path, "story.txt", 0, 100).expect("file_history");
+    assert_eq!(history.len(), 2);
+    assert_eq!(history[0].subject, "expand story");
+    assert_eq!(history[1].subject, "add story");
+
+    let blame = git_core::ops::blame(
+        &cli,
+        repo_path,
+        "story.txt",
+        None,
+        git_core::ops::BlameOptions::default(),
+    )
+    .expect("blame");
+    assert_eq!(blame.len(), 2);
+    assert_eq!(blame[0].line_no, 1);
+    assert_eq!(blame[0].commit.summary, "add story");
+    assert_eq!(blame[1].line_no, 2);
+    assert_eq!(blame[1].commit.summary, "expand story");
+}
+
+#[test]
+fn test_conflict_versions_and_resolve() {
+    let dir = tempdir().expect("tempdir");
+    let repo_path = dir.path();
+    init_git_repo(repo_path);
+
+    let file_path = repo_path.join("conflict.txt");
+    fs::write(&file_path, "base line\n").unwrap();
+    Command::new("git")
+        .args(["add", "conflict.txt"])
+        .current_dir(repo_path)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["commit", "-m", "base commit"])
+        .current_dir(repo_path)
+        .output()
+        .unwrap();
+
+    // Branch feature
+    Command::new("git")
+        .args(["checkout", "-b", "feature"])
+        .current_dir(repo_path)
+        .output()
+        .unwrap();
+    fs::write(&file_path, "feature line\n").unwrap();
+    Command::new("git")
+        .args(["commit", "-am", "feature commit"])
+        .current_dir(repo_path)
+        .output()
+        .unwrap();
+
+    // Branch main
+    Command::new("git")
+        .args(["checkout", "main"])
+        .current_dir(repo_path)
+        .output()
+        .unwrap();
+    fs::write(&file_path, "main line\n").unwrap();
+    Command::new("git")
+        .args(["commit", "-am", "main commit"])
+        .current_dir(repo_path)
+        .output()
+        .unwrap();
+
+    // Merge feature into main (conflicts)
+    let _ = Command::new("git")
+        .args(["merge", "feature"])
+        .current_dir(repo_path)
+        .output()
+        .unwrap();
+
+    let cli = git_core::GitCli::new("git");
+    let versions = git_core::ops::conflict_versions(&cli, repo_path, "conflict.txt")
+        .expect("conflict_versions");
+    assert!(versions.base.is_some());
+    assert!(versions.ours.is_some());
+    assert!(versions.theirs.is_some());
+
+    // Resolve conflict
+    git_core::ops::mark_resolved(&cli, repo_path, "conflict.txt", b"resolved combined line\n")
+        .expect("mark_resolved");
+
+    // Verify resolved in index
+    let resolved_content = fs::read_to_string(&file_path).unwrap();
+    assert_eq!(resolved_content, "resolved combined line\n");
+}
+
+#[test]
+fn test_sequence_editor_submit_rebase_todo() {
+    let prompts = vsc_git_lib::repo::ipc::get_pending_prompts();
+    let (tx, rx) = std::sync::mpsc::channel::<Option<String>>();
+    prompts.insert(
+        "prompt_seq_1".to_string(),
+        "sequence_editor".to_string(),
+        tx,
+    );
+
+    let items = vec![
+        git_core::RebaseTodoEntry {
+            action: git_core::RebaseAction::Pick,
+            sha: "1111111".to_string(),
+            subject: "first commit".to_string(),
+        },
+        git_core::RebaseTodoEntry {
+            action: git_core::RebaseAction::Reword,
+            sha: "2222222".to_string(),
+            subject: "second commit".to_string(),
+        },
+    ];
+    let serialized = git_core::ops::serialize_rebase_todo(&items);
+
+    assert!(prompts.answer_prompt_by_id(
+        "prompt_seq_1",
+        "sequence_editor",
+        Some(serialized.clone())
+    ));
+    let received = rx.recv().unwrap();
+    assert_eq!(received, Some(serialized));
+}

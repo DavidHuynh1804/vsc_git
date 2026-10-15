@@ -6,6 +6,7 @@ export interface TabItem {
   id: string;
   title: string;
   closable?: boolean;
+  baseSha?: string;
 }
 
 export interface UIState {
@@ -18,7 +19,7 @@ export interface UIState {
   isCreatePrOpen: boolean;
   tabs: TabItem[];
   activeTabId: string;
-
+  selectedGraphSha: string | null;
   setActiveActivity: (view: ActivityView) => void;
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
@@ -31,6 +32,7 @@ export interface UIState {
   openTab: (tab: TabItem) => void;
   closeTab: (id: string) => void;
   setActiveTabId: (id: string) => void;
+  setSelectedGraphSha: (sha: string | null) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -43,7 +45,7 @@ export const useUIStore = create<UIState>((set) => ({
   isCreatePrOpen: false,
   tabs: [{ id: "welcome", title: "Welcome", closable: false }],
   activeTabId: "welcome",
-
+  selectedGraphSha: null,
   setActiveActivity: (view) =>
     set((state) => ({
       activeActivity: view,
@@ -77,8 +79,11 @@ export const useUIStore = create<UIState>((set) => ({
   openTab: (tab) =>
     set((state) => {
       const exists = state.tabs.some((t) => t.id === tab.id);
+      const nextTabs = exists
+        ? state.tabs.map((t) => (t.id === tab.id ? { ...t, ...tab } : t))
+        : [...state.tabs, tab];
       return {
-        tabs: exists ? state.tabs : [...state.tabs, tab],
+        tabs: nextTabs,
         activeTabId: tab.id,
       };
     }),
@@ -97,4 +102,5 @@ export const useUIStore = create<UIState>((set) => ({
     }),
 
   setActiveTabId: (activeTabId) => set({ activeTabId }),
+  setSelectedGraphSha: (selectedGraphSha) => set({ selectedGraphSha }),
 }));

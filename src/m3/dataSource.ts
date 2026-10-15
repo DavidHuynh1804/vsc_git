@@ -7,6 +7,9 @@ import {
   FileHistoryEntry,
   RebaseTodoEntry,
 } from "./types";
+import { commands, events, AppRebaseAction, AppError } from "@/bindings";
+import { reportAppError } from "@/utils/errors";
+import { isMock } from "@/env";
 
 export interface M3DataSource {
   getOperationState(): Promise<RawOperationState>;
@@ -19,7 +22,7 @@ export interface M3DataSource {
   blame(path: string, rev?: string, opts?: BlameOptions): Promise<BlameLine[]>;
   fileHistory(path: string, skip?: number, limit?: number): Promise<FileHistoryEntry[]>;
   rebaseInteractive(base: string): Promise<string>;
-  submitRebaseTodo(items: RebaseTodoEntry[]): Promise<void>;
+  submitRebaseTodo(items: RebaseTodoEntry[], promptId?: string): Promise<void>;
   openInEditor(path: string, line?: number): Promise<void>;
   getRebaseTodo?(): RebaseTodoEntry[];
   saveWorktreeFile(path: string, content: string): Promise<void>;
@@ -317,7 +320,7 @@ export class MockM3DataSource implements M3DataSource {
     return "mock-rebase-job-id";
   }
 
-  async submitRebaseTodo(items: RebaseTodoEntry[]): Promise<void> {
+  async submitRebaseTodo(items: RebaseTodoEntry[], _promptId?: string): Promise<void> {
     this.rebaseTodoItems = [...items];
   }
 
@@ -341,80 +344,178 @@ export class MockM3DataSource implements M3DataSource {
  * TauriM3DataSource: Invokes Tauri commands defined in Spec 11.
  */
 export class TauriM3DataSource implements M3DataSource {
-  // TODO: connect with Tauri commands once feat/m1-backend bindings are generated
-  private fallback = new MockM3DataSource();
+  private handleError(error: AppError): never {
+    reportAppError(error);
+    throw error;
+  }
 
   async getOperationState(): Promise<RawOperationState> {
-    // Spec 11: get_operation_state() -> OperationState
-    return this.fallback.getOperationState();
+    const res = await commands.getOperationState();
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
+    return res.data as RawOperationState;
   }
 
   async opContinue(): Promise<void> {
-    // Spec 11: op_continue()
-    return this.fallback.opContinue();
+    const res = await commands.opContinue();
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async opSkip(): Promise<void> {
-    // Spec 11: op_skip()
-    return this.fallback.opSkip();
+    const res = await commands.opSkip();
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async opAbort(): Promise<void> {
-    // Spec 11: op_abort()
-    return this.fallback.opAbort();
+    const res = await commands.opAbort();
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async getConflict(path: string): Promise<ConflictVersions> {
-    // Spec 11: get_conflict(path) -> ConflictVersions
-    return this.fallback.getConflict(path);
+    const res = await commands.getConflict(path);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
+    return {
+      base: res.data.base ? new Uint8Array(res.data.base) : null,
+      ours: res.data.ours ? new Uint8Array(res.data.ours) : null,
+      theirs: res.data.theirs ? new Uint8Array(res.data.theirs) : null,
+      worktree: res.data.worktree ? new Uint8Array(res.data.worktree) : null,
+    };
   }
 
   async resolveConflict(path: string, content: string): Promise<void> {
-    // Spec 11: resolve_conflict(path, content)
-    return this.fallback.resolveConflict(path, content);
+    const res = await commands.resolveConflict(path, content);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async resolveWith(path: string, resolution: Resolution): Promise<void> {
-    // Spec 11: resolve_with(path, resolution)
-    return this.fallback.resolveWith(path, resolution);
+    const res = await commands.resolveWith(path, resolution);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async blame(path: string, rev?: string, opts?: BlameOptions): Promise<BlameLine[]> {
-    // Spec 11: blame(path, rev?, opts)
-    return this.fallback.blame(path, rev, opts);
+    const appOpts = opts
+      ? {
+          ignore_ws: opts.ignore_ws ?? false,
+          detect_moves: opts.detect_moves ?? false,
+          detect_copies: opts.detect_copies ?? false,
+        }
+      : null;
+    const res = await commands.blame(path, rev ?? null, appOpts);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
+    return res.data.map((l) => ({
+      line_no: l.line_no,
+      commit: {
+        sha: l.commit.sha,
+        author: l.commit.author,
+        author_mail: l.commit.author_mail,
+        author_time: l.commit.author_time ?? 0,
+        summary: l.commit.summary,
+        previous: null,
+      },
+    }));
   }
 
   async fileHistory(
     path: string,
-    skip?: number,
-    limit?: number
+    _skip?: number,
+    _limit?: number
   ): Promise<FileHistoryEntry[]> {
-    // Spec 11: file_history(path, cursor)
-    return this.fallback.fileHistory(path, skip, limit);
+    const res = await commands.fileHistory(path);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
+    return res.data.map((e) => ({
+      sha: e.sha,
+      parents: e.parents,
+      author: e.author,
+      time: e.date ?? 0,
+      subject: e.subject,
+      path_at_commit: path,
+      status: "M",
+    }));
   }
 
   async rebaseInteractive(base: string): Promise<string> {
-    // Spec 11: rebase_interactive(base) -> JobId
-    return this.fallback.rebaseInteractive(base);
+    const res = await commands.rebaseInteractive(base);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
+    return res.data;
   }
 
-  async submitRebaseTodo(items: RebaseTodoEntry[]): Promise<void> {
-    // Spec 11: submit_rebase_todo(items)
-    return this.fallback.submitRebaseTodo(items);
+  async submitRebaseTodo(items: RebaseTodoEntry[], promptId?: string): Promise<void> {
+    const appItems = items.map((it) => {
+      let action: AppRebaseAction = "Pick";
+      switch (it.action.toLowerCase()) {
+        case "reword":
+          action = "Reword";
+          break;
+        case "edit":
+          action = "Edit";
+          break;
+        case "squash":
+          action = "Squash";
+          break;
+        case "fixup":
+          action = "Fixup";
+          break;
+        case "drop":
+          action = "Drop";
+          break;
+        default:
+          action = "Pick";
+          break;
+      }
+      return {
+        sha: it.sha,
+        action,
+        subject: it.subject,
+      };
+    });
+    const res = await commands.submitRebaseTodo(appItems, promptId ?? "");
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async openInEditor(path: string, line?: number): Promise<void> {
-    // Spec 11: open_in_editor(path, line?)
-    return this.fallback.openInEditor(path, line);
+    const res = await commands.openInEditor(path, line ?? null);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async saveWorktreeFile(path: string, content: string): Promise<void> {
-    // Spec 11: save_worktree_file(path, content)
-    return this.fallback.saveWorktreeFile(path, content);
+    const res = await commands.saveWorktreeFile(path, content);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   onOperationChanged(cb: () => void): () => void {
-    // Spec 11: repo://operation-changed
-    return this.fallback.onOperationChanged(cb);
+    if (isMock()) return () => {};
+    let active = true;
+    const unlistenPromise = events.repoOperationChanged.listen(() => {
+      if (active) cb();
+    });
+    return () => {
+      active = false;
+      unlistenPromise.then((u) => u());
+    };
   }
 }

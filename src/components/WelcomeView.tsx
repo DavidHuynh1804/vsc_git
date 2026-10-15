@@ -2,7 +2,9 @@ import React, { useEffect } from "react";
 import { FolderOpen, History, GitFork, Sparkles, FolderGit2 } from "lucide-react";
 import { useRepoStore } from "@/stores/repo";
 import { useUIStore } from "@/stores/ui";
-import { commands } from "@/bindings";
+import { commands, RepoInfo } from "@/bindings";
+import { useScmStore } from "@/scm/scmStore";
+import { useM3Store } from "@/m3/m3Store";
 
 export const WelcomeView: React.FC = () => {
   const { recentRepos, setRecentRepos, setRepo, setLoading, setError, repoRoot } = useRepoStore();
@@ -16,6 +18,21 @@ export const WelcomeView: React.FC = () => {
     });
   }, [setRecentRepos]);
 
+  const onRepoOpened = async (repoInfo: RepoInfo) => {
+    setRepo(repoInfo);
+    const scm = useScmStore.getState();
+    void scm.refreshStatus();
+    void scm.refreshRefs();
+    void scm.refreshStashes();
+    const m3 = useM3Store.getState();
+    void m3.refreshOperationState();
+    const recent = await commands.recentRepos();
+    if (recent.status === "ok") {
+      setRecentRepos(recent.data);
+    }
+    openTab({ id: "graph", title: "Git Graph", closable: true });
+  };
+
   const handleOpenFolder = async () => {
     try {
       setLoading(true);
@@ -23,8 +40,7 @@ export const WelcomeView: React.FC = () => {
       if (picked.status === "ok" && picked.data) {
         const opened = await commands.openRepo(picked.data);
         if (opened.status === "ok") {
-          setRepo(opened.data);
-          openTab({ id: "graph", title: "Git Graph", closable: true });
+          await onRepoOpened(opened.data);
         } else {
           setError(opened.error.message);
         }
@@ -41,8 +57,7 @@ export const WelcomeView: React.FC = () => {
       setLoading(true);
       const opened = await commands.openRepo(path);
       if (opened.status === "ok") {
-        setRepo(opened.data);
-        openTab({ id: "graph", title: "Git Graph", closable: true });
+        await onRepoOpened(opened.data);
       } else {
         setError(opened.error.message);
       }
@@ -52,7 +67,6 @@ export const WelcomeView: React.FC = () => {
       setLoading(false);
     }
   };
-
   return (
     <div className="flex h-full w-full flex-col items-center justify-center p-8 select-none text-vscode-fg overflow-y-auto">
       <div className="flex max-w-2xl w-full flex-col gap-8">
