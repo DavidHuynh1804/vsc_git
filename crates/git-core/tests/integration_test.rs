@@ -1,6 +1,7 @@
 use git_core::{
-    apply_ranges, discard, stage, stage_all, status, unstage, unstage_all, ApplyMode,
-    CommandOptions, FileStatus, GitCli, GitOutput, LineSelection, StatusEntryKind,
+    apply_ranges, commit, discard, last_commit_message, stage, stage_all, status, unstage,
+    unstage_all, ApplyMode, CommandOptions, CommitOptions, FileStatus, GitCli, GitOutput,
+    LineSelection, StatusEntryKind,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -272,4 +273,43 @@ fn test_integration_crlf_apply_ranges() {
     // Check file in index via `git show :crlf.txt` bytes
     let index_bytes = repo.git(&["show", ":crlf.txt"]).stdout;
     assert_eq!(index_bytes, b"line1\r\nline2\r\nline3\r\nline4_new\r\n");
+}
+
+#[test]
+fn test_integration_commit_amend_and_options() {
+    let repo = TestRepo::new();
+    repo.write_file("file.txt", "content 1\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+
+    // 1. Initial commit
+    commit(
+        &repo.cli,
+        repo.path(),
+        CommitOptions::new("feat: initial commit"),
+    )
+    .unwrap();
+    assert_eq!(
+        last_commit_message(&repo.cli, repo.path()).unwrap(),
+        "feat: initial commit"
+    );
+
+    // 2. Amend commit with signoff
+    repo.write_file("file.txt", "content 2\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+    commit(
+        &repo.cli,
+        repo.path(),
+        CommitOptions {
+            message: "feat: amended commit".into(),
+            amend: true,
+            signoff: true,
+            no_verify: false,
+            all: false,
+        },
+    )
+    .unwrap();
+
+    let msg = last_commit_message(&repo.cli, repo.path()).unwrap();
+    assert!(msg.starts_with("feat: amended commit"));
+    assert!(msg.contains("Signed-off-by: Integration Tester <integration@test.com>"));
 }
