@@ -142,7 +142,7 @@ impl ReadRepo {
         self.diff_trees(Some(&tree_a), &tree_b)
     }
 
-    fn resolve_tree<'a>(&'a self, rev: &str) -> Result<gix::Tree<'a>, ReadError> {
+    pub(crate) fn resolve_tree<'a>(&'a self, rev: &str) -> Result<gix::Tree<'a>, ReadError> {
         let obj = if let Ok(oid) = gix::ObjectId::from_hex(rev.as_bytes()) {
             self.gix_repo()
                 .find_object(oid)
