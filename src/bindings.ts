@@ -101,6 +101,43 @@ export const commands = {
 	commitDetail: (sha: string) => typedError<AppCommitDetail, AppError>(__TAURI_INVOKE("commit_detail", { sha })),
 	compare: (a: string, b: string) => typedError<AppFileChange[], AppError>(__TAURI_INVOKE("compare", { a, b })),
 	graphSearch: (query: string) => typedError<string, AppError>(__TAURI_INVOKE("graph_search", { query })),
+	hostInfo: () => typedError<{
+	host: string,
+	kind: string,
+	apiBaseUrl: string,
+	namespace: string,
+	repo: string,
+} | null, AppError>(__TAURI_INVOKE("host_info")),
+	setHostToken: (host: string, token: string) => typedError<null, AppError>(__TAURI_INVOKE("set_host_token", { host, token })),
+	deleteHostToken: (host: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_host_token", { host })),
+	testHostToken: (host: HostConfig, token: string | null) => typedError<ConnectionTestResult, AppError>(__TAURI_INVOKE("test_host_token", { host, token })),
+	currentPullRequest: () => typedError<{
+	id: number,
+	number: number,
+	title: string,
+	body: string | null,
+	url: string,
+	base: string,
+	head: string,
+	draft: boolean,
+	state: string,
+	author: string,
+} | null, AppError>(__TAURI_INVOKE("current_pull_request")),
+	listPullRequests: () => typedError<PullRequest[], AppError>(__TAURI_INVOKE("list_pull_requests")),
+	createPullRequest: (req: CreatePrRequest) => typedError<PullRequest, AppError>(__TAURI_INVOKE("create_pull_request", { req })),
+	ciStatus: (sha: string) => typedError<CiStatus, AppError>(__TAURI_INVOKE("ci_status", { sha })),
+	searchReviewers: (hostName: string | null, query: string) => typedError<Reviewer[], AppError>(__TAURI_INVOKE("search_reviewers", { hostName, query })),
+	checkBranchPushed: (headBranch: string) => typedError<boolean, AppError>(__TAURI_INVOKE("check_branch_pushed", { headBranch })),
+	avatar: (email: string) => typedError<string | null, AppError>(__TAURI_INVOKE("avatar", { email })),
+	setAiKey: (provider: string, key: string) => typedError<null, AppError>(__TAURI_INVOKE("set_ai_key", { provider, key })),
+	deleteAiKey: (provider: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_ai_key", { provider })),
+	testAiProvider: (provider: string, model: string | null, baseUrl: string | null) => typedError<string, AppError>(__TAURI_INVOKE("test_ai_provider", { provider, model, baseUrl })),
+	aiListModels: (provider: string, baseUrl: string | null) => typedError<string[], AppError>(__TAURI_INVOKE("ai_list_models", { provider, baseUrl })),
+	aiHasConsent: (repoPath: string, provider: string) => typedError<boolean, AppError>(__TAURI_INVOKE("ai_has_consent", { repoPath, provider })),
+	aiSetConsent: (repoPath: string, provider: string, granted: boolean) => typedError<null, AppError>(__TAURI_INVOKE("ai_set_consent", { repoPath, provider, granted })),
+	aiGenerateCommit: () => typedError<string, AppError>(__TAURI_INVOKE("ai_generate_commit")),
+	aiGeneratePr: (base: string, head: string) => typedError<string, AppError>(__TAURI_INVOKE("ai_generate_pr", { base, head })),
+	aiExplainCommit: (sha: string) => typedError<string, AppError>(__TAURI_INVOKE("ai_explain_commit", { sha })),
 };
 
 /** Events */
@@ -327,6 +364,42 @@ export type AppStatusEntry = {
 	conflict_type: string | null,
 };
 
+export type CiCheck = {
+	name: string,
+	state: CiState,
+	url: string | null,
+};
+
+export type CiState = "success" | "failure" | "pending" | "none";
+
+export type CiStatus = {
+	state: CiState,
+	checks: CiCheck[],
+};
+
+export type ConnectionTestResult = {
+	user: CurrentUser,
+	scopeCheck: ScopeCheckResult,
+};
+
+export type CreatePrRequest = {
+	base: string,
+	head: string,
+	title: string,
+	body: string,
+	draft: boolean,
+	reviewers: string[],
+	labels: string[],
+};
+
+export type CurrentUser = {
+	username: string,
+	name: string | null,
+	email: string | null,
+	avatarUrl: string | null,
+	scopes: string[],
+};
+
 export type ErrorKind = "NotARepo" | "GitMissing" | "GitTooOld" | "IndexLocked" | "Conflict" | "DirtyWorktree" | "AuthFailed" | "NonFastForward" | "HookFailed" | "NothingToCommit" | "Network" | "PatchFailed" | "HostApi" | "AiProvider" | "Cancelled" | "Internal";
 
 export type ExportedLogs = {
@@ -358,6 +431,14 @@ export type HostConfig = {
 	apiBaseUrl: string,
 };
 
+export type HostInfo = {
+	host: string,
+	kind: string,
+	apiBaseUrl: string,
+	namespace: string,
+	repo: string,
+};
+
 export type JobChunkEvent = {
 	id: string,
 	chunk: string,
@@ -386,6 +467,19 @@ export type PromptRequestEvent = {
 	prompt: string,
 };
 
+export type PullRequest = {
+	id: number,
+	number: number,
+	title: string,
+	body: string | null,
+	url: string,
+	base: string,
+	head: string,
+	draft: boolean,
+	state: string,
+	author: string,
+};
+
 export type RecentRepo = {
 	path: string,
 	name: string,
@@ -399,6 +493,18 @@ export type RefsChangedEvent = {
 export type RepoInfo = {
 	root: string,
 	head_branch: string,
+};
+
+export type Reviewer = {
+	username: string,
+	name: string | null,
+	avatarUrl: string | null,
+};
+
+export type ScopeCheckResult = {
+	ok: boolean,
+	requiredScopes: string[],
+	missingScopes: string[],
 };
 
 export type Settings = {
@@ -428,6 +534,7 @@ export type Settings = {
 	"ai.maxDiffTokens"?: number,
 	"ai.excludeGlobs"?: string[],
 	"ai.disabledRepos"?: string[],
+	"ai.consents"?: { [key in string]: string[] },
 	hosts?: HostConfig[],
 	"ui.theme"?: string,
 	"update.channel"?: string,
