@@ -15,4 +15,6 @@ pub use parse::{
     parse_status_v2, BranchInfo, FileStatus, RepoStatus, StatusEntry, StatusEntryKind,
     SubmoduleState,
 };
-pub use patch::{apply_ranges, build_range_patch, ApplyMode, LineRange};
+pub use patch::{
+    apply_ranges, build_range_patch, hunk_selections, ApplyMode, LineRange, LineSelection, Side,
+};

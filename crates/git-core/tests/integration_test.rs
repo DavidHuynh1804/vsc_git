@@ -1,6 +1,6 @@
 use git_core::{
     apply_ranges, discard, stage, stage_all, status, unstage, unstage_all, ApplyMode,
-    CommandOptions, FileStatus, GitCli, GitOutput, LineRange, StatusEntryKind,
+    CommandOptions, FileStatus, GitCli, GitOutput, LineSelection, StatusEntryKind,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -195,7 +195,7 @@ fn test_integration_single_line_stage_unstage_revert() {
         &repo.cli,
         repo.path(),
         "doc.txt",
-        &[LineRange::new(4, 4)],
+        &[LineSelection::modified(4, 4)],
         ApplyMode::Stage,
     )
     .unwrap();
@@ -215,7 +215,7 @@ fn test_integration_single_line_stage_unstage_revert() {
         &repo.cli,
         repo.path(),
         "doc.txt",
-        &[LineRange::new(4, 4)],
+        &[LineSelection::modified(4, 4)],
         ApplyMode::Unstage,
     )
     .unwrap();
@@ -228,7 +228,7 @@ fn test_integration_single_line_stage_unstage_revert() {
         &repo.cli,
         repo.path(),
         "doc.txt",
-        &[LineRange::new(2, 2)],
+        &[LineSelection::original(2, 2), LineSelection::modified(2, 2)],
         ApplyMode::Revert,
     )
     .unwrap();
@@ -259,7 +259,7 @@ fn test_integration_crlf_apply_ranges() {
         &repo.cli,
         repo.path(),
         "crlf.txt",
-        &[LineRange::new(4, 4)],
+        &[LineSelection::modified(4, 4)],
         ApplyMode::Stage,
     )
     .unwrap();
