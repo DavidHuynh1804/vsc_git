@@ -422,6 +422,12 @@ fn read_request_line(
                             "connection closed before request was received",
                         )));
                     }
+                    if !buf.contains(&b'\n') {
+                        return Err(IpcError::Io(std::io::Error::new(
+                            std::io::ErrorKind::UnexpectedEof,
+                            "connection closed before newline was received",
+                        )));
+                    }
                     break;
                 }
                 Ok(n) => {
@@ -454,52 +460,76 @@ fn read_request_line(
 
     #[cfg(windows)]
     {
-        use interprocess::local_socket::traits::Stream;
+        use interprocess::TryClone;
         use std::io::Read;
 
-        conn.set_nonblocking(true)?;
-        let mut buf = Vec::new();
-        let mut chunk = [0u8; 1024];
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut conn_reader = conn.try_clone()?;
+        std::thread::spawn(move || {
+            let mut chunk = [0u8; 1024];
+            loop {
+                match conn_reader.read(&mut chunk) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        if tx.send(Ok(chunk[..n].to_vec())).is_err() {
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Err(e));
+                        break;
+                    }
+                }
+            }
+        });
 
-        let result = loop {
-            if std::time::Instant::now() >= deadline {
-                break Err(IpcError::Io(std::io::Error::new(
+        let mut buf = Vec::new();
+        loop {
+            let now = std::time::Instant::now();
+            if now >= deadline {
+                return Err(IpcError::Io(std::io::Error::new(
                     std::io::ErrorKind::TimedOut,
                     "request read timed out",
                 )));
             }
-
-            let read_limit = (max_size + 1).saturating_sub(buf.len()) as u64;
-            match (&mut *conn).take(read_limit).read(&mut chunk) {
-                Ok(0) => {
-                    if buf.is_empty() {
-                        break Err(IpcError::Io(std::io::Error::new(
-                            std::io::ErrorKind::UnexpectedEof,
-                            "connection closed before request was received",
-                        )));
-                    }
-                    break Ok(());
-                }
-                Ok(n) => {
-                    buf.extend_from_slice(&chunk[..n]);
+            let remaining = deadline.saturating_duration_since(now);
+            match rx.recv_timeout(remaining) {
+                Ok(Ok(chunk)) => {
+                    buf.extend_from_slice(&chunk);
                     if buf.len() > max_size {
-                        break Err(IpcError::CancelledOrFailed(
+                        return Err(IpcError::CancelledOrFailed(
                             "request payload exceeds maximum size".to_string(),
                         ));
                     }
                     if buf.contains(&b'\n') {
-                        break Ok(());
+                        break;
                     }
                 }
-                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    std::thread::sleep(std::time::Duration::from_millis(5));
+                Ok(Err(e)) => return Err(IpcError::Io(e)),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    return Err(IpcError::Io(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "request read timed out",
+                    )));
                 }
-                Err(e) => break Err(IpcError::Io(e)),
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    if buf.is_empty() {
+                        return Err(IpcError::Io(std::io::Error::new(
+                            std::io::ErrorKind::UnexpectedEof,
+                            "connection closed before request was received",
+                        )));
+                    }
+                    if !buf.contains(&b'\n') {
+                        return Err(IpcError::Io(std::io::Error::new(
+                            std::io::ErrorKind::UnexpectedEof,
+                            "connection closed before newline was received",
+                        )));
+                    }
+                    break;
+                }
             }
-        };
+        }
 
-        let _ = conn.set_nonblocking(false);
-        result?;
         String::from_utf8(buf)
             .map_err(|e| IpcError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))
     }
