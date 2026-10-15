@@ -66,6 +66,27 @@ pub fn get_pending_prompts() -> &'static PendingPrompts {
     unsafe { &*(lock.as_ref().unwrap() as *const PendingPrompts) }
 }
 
+pub fn get_or_start_ipc(app: AppHandle) -> Result<(), AppError> {
+    if get_ipc_server_slot().read().is_some() {
+        return Ok(());
+    }
+    let server = IpcServer::start(app)?;
+    *get_ipc_server_slot().write() = Some(server);
+    Ok(())
+}
+
+fn get_ipc_server_slot() -> &'static parking_lot::RwLock<Option<IpcServer>> {
+    static SERVER: parking_lot::RwLock<Option<IpcServer>> = parking_lot::RwLock::new(None);
+    &SERVER
+}
+
+pub fn get_ipc_addr_token() -> Option<(String, String)> {
+    get_ipc_server_slot()
+        .read()
+        .as_ref()
+        .map(|s| (s.addr.clone(), s.token.clone()))
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn answer_prompt(_app: AppHandle, id: String, value: Option<String>) -> Result<(), AppError> {
@@ -316,10 +337,10 @@ pub fn setup_git_env(
     }
 
     if let Some(seq_path) = find_helper_binary("vsc-git-sequence-editor") {
-        let p_str = seq_path.to_string_lossy().to_string();
+        let cmd_str = vsc_ipc::git_editor_command(&seq_path);
         cli = cli
-            .with_env("GIT_SEQUENCE_EDITOR", &p_str)
-            .with_env("GIT_EDITOR", &p_str);
+            .with_env("GIT_SEQUENCE_EDITOR", &cmd_str)
+            .with_env("GIT_EDITOR", &cmd_str);
     }
 
     cli

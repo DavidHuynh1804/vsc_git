@@ -17,21 +17,314 @@ export const commands = {
 	gitVersion: () => typedError<string, AppError>(__TAURI_INVOKE("git_version")),
 	getGitOutput: () => typedError<GitOutputEntry[], AppError>(__TAURI_INVOKE("get_git_output")),
 	pickFolder: () => typedError<string | null, AppError>(__TAURI_INVOKE("pick_folder")),
+	cancelJob: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("cancel_job", { id })),
+	answerPrompt: (id: string, value: string | null) => typedError<null, AppError>(__TAURI_INVOKE("answer_prompt", { id, value })),
+	openInEditor: (path: string, line: number | null) => typedError<null, AppError>(__TAURI_INVOKE("open_in_editor", { path, line })),
+	revealInFileManager: (path: string) => typedError<null, AppError>(__TAURI_INVOKE("reveal_in_file_manager", { path })),
+	openUrl: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("open_url", { url })),
+	initRepo: (path: string) => typedError<RepoInfo, AppError>(__TAURI_INVOKE("init_repo", { path })),
+	cloneRepo: (url: string, dir: string) => typedError<string, AppError>(__TAURI_INVOKE("clone_repo", { url, dir })),
+	getStatus: () => typedError<AppRepoStatus, AppError>(__TAURI_INVOKE("get_status")),
+	refresh: () => typedError<AppRepoStatus, AppError>(__TAURI_INVOKE("refresh")),
+	stage: (paths: string[]) => typedError<null, AppError>(__TAURI_INVOKE("stage", { paths })),
+	unstage: (paths: string[]) => typedError<null, AppError>(__TAURI_INVOKE("unstage", { paths })),
+	discard: (paths: string[]) => typedError<null, AppError>(__TAURI_INVOKE("discard", { paths })),
+	stageAll: () => typedError<null, AppError>(__TAURI_INVOKE("stage_all")),
+	unstageAll: () => typedError<null, AppError>(__TAURI_INVOKE("unstage_all")),
+	stageSelections: (path: string, selections: AppLineSelection[]) => typedError<null, AppError>(__TAURI_INVOKE("stage_selections", { path, selections })),
+	unstageSelections: (path: string, selections: AppLineSelection[]) => typedError<null, AppError>(__TAURI_INVOKE("unstage_selections", { path, selections })),
+	revertSelections: (path: string, selections: AppLineSelection[]) => typedError<null, AppError>(__TAURI_INVOKE("revert_selections", { path, selections })),
+	getFileContent: (path: string, rev: AppFileRev) => typedError<string, AppError>(__TAURI_INVOKE("get_file_content", { path, rev })),
+	saveWorktreeFile: (path: string, content: string) => typedError<null, AppError>(__TAURI_INVOKE("save_worktree_file", { path, content })),
+	commit: (options: AppCommitOptions) => typedError<null, AppError>(__TAURI_INVOKE("commit", { options })),
+	lastCommitMessage: () => typedError<string, AppError>(__TAURI_INVOKE("last_commit_message")),
+	getDraftMessage: () => typedError<string, AppError>(__TAURI_INVOKE("get_draft_message")),
+	setDraftMessage: (message: string) => typedError<null, AppError>(__TAURI_INVOKE("set_draft_message", { message })),
+	listRefs: () => typedError<AppRefInfo[], AppError>(__TAURI_INVOKE("list_refs")),
+	checkout: (refName: string) => typedError<null, AppError>(__TAURI_INVOKE("checkout", { refName })),
+	createBranch: (name: string, startPoint: string | null) => typedError<null, AppError>(__TAURI_INVOKE("create_branch", { name, startPoint })),
+	renameBranch: (oldName: string | null, newName: string) => typedError<null, AppError>(__TAURI_INVOKE("rename_branch", { oldName, newName })),
+	deleteBranch: (name: string, force: boolean) => typedError<null, AppError>(__TAURI_INVOKE("delete_branch", { name, force })),
+	deleteRemoteBranch: (remote: string, branch: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_remote_branch", { remote, branch })),
+	setUpstream: (branch: string | null, upstream: string | null) => typedError<null, AppError>(__TAURI_INVOKE("set_upstream", { branch, upstream })),
+	createTag: (name: string, target: string | null, message: string | null) => typedError<null, AppError>(__TAURI_INVOKE("create_tag", { name, target, message })),
+	deleteTag: (name: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_tag", { name })),
+	pushTag: (name: string, remote: string | null) => typedError<null, AppError>(__TAURI_INVOKE("push_tag", { name, remote })),
+	fetch: (remote: string | null) => typedError<string, AppError>(__TAURI_INVOKE("fetch", { remote })),
+	pull: (mode: "Default" | "Rebase" | "FastForwardOnly" | null) => typedError<string, AppError>(__TAURI_INVOKE("pull", { mode })),
+	push: (options: {
+	remote: string | null,
+	branch: string | null,
+	set_upstream: boolean,
+	force_with_lease: boolean,
+	tags: boolean,
+} | null) => typedError<string, AppError>(__TAURI_INVOKE("push", { options })),
+	sync: () => typedError<string, AppError>(__TAURI_INVOKE("sync")),
+	listStashes: () => typedError<AppStashEntry[], AppError>(__TAURI_INVOKE("list_stashes")),
+	stashPush: (options: {
+	message: string | null,
+	include_untracked: boolean,
+	paths: string[],
+} | null) => typedError<null, AppError>(__TAURI_INVOKE("stash_push", { options })),
+	stashApply: (index: number) => typedError<null, AppError>(__TAURI_INVOKE("stash_apply", { index })),
+	stashPop: (index: number) => typedError<null, AppError>(__TAURI_INVOKE("stash_pop", { index })),
+	stashDrop: (index: number) => typedError<null, AppError>(__TAURI_INVOKE("stash_drop", { index })),
+	stashDiff: (index: number) => typedError<string, AppError>(__TAURI_INVOKE("stash_diff", { index })),
+	cherryPick: (sha: string) => typedError<null, AppError>(__TAURI_INVOKE("cherry_pick", { sha })),
+	revert: (sha: string) => typedError<null, AppError>(__TAURI_INVOKE("revert", { sha })),
+	reset: (sha: string, mode: string) => typedError<null, AppError>(__TAURI_INVOKE("reset", { sha, mode })),
+	merge: (refName: string, opts: string | null) => typedError<null, AppError>(__TAURI_INVOKE("merge", { refName, opts })),
+	rebase: (refName: string) => typedError<null, AppError>(__TAURI_INVOKE("rebase", { refName })),
+	rebaseInteractive: (base: string) => typedError<string, AppError>(__TAURI_INVOKE("rebase_interactive", { base })),
+	submitRebaseTodo: (items: AppRebaseTodoEntry[]) => typedError<null, AppError>(__TAURI_INVOKE("submit_rebase_todo", { items })),
+	opContinue: () => typedError<null, AppError>(__TAURI_INVOKE("op_continue")),
+	opSkip: () => typedError<null, AppError>(__TAURI_INVOKE("op_skip")),
+	opAbort: () => typedError<null, AppError>(__TAURI_INVOKE("op_abort")),
+	getOperationState: () => typedError<AppOperationState, AppError>(__TAURI_INVOKE("get_operation_state")),
+	getConflict: (path: string) => typedError<AppConflictVersions, AppError>(__TAURI_INVOKE("get_conflict", { path })),
+	resolveConflict: (path: string, content: string) => typedError<null, AppError>(__TAURI_INVOKE("resolve_conflict", { path, content })),
+	resolveWith: (path: string, resolution: AppResolution) => typedError<null, AppError>(__TAURI_INVOKE("resolve_with", { path, resolution })),
+	blame: (path: string, rev: string | null, opts: {
+	ignore_ws: boolean,
+	detect_moves: boolean,
+	detect_copies: boolean,
+} | null) => typedError<AppBlameLine[], AppError>(__TAURI_INVOKE("blame", { path, rev, opts })),
+	fileHistory: (path: string) => typedError<AppFileHistoryEntry[], AppError>(__TAURI_INVOKE("file_history", { path })),
+	graphReset: (filter: {
+	refs: string[] | null,
+	include_remotes: boolean,
+	include_tags: boolean,
+	include_stash: boolean,
+	first_parent_only: boolean,
+} | null) => typedError<null, AppError>(__TAURI_INVOKE("graph_reset", { filter })),
+	graphPage: (limit: number | null) => typedError<AppGraphPage, AppError>(__TAURI_INVOKE("graph_page", { limit })),
+	commitDetail: (sha: string) => typedError<AppCommitDetail, AppError>(__TAURI_INVOKE("commit_detail", { sha })),
+	compare: (a: string, b: string) => typedError<AppFileChange[], AppError>(__TAURI_INVOKE("compare", { a, b })),
+	graphSearch: (query: string) => typedError<string, AppError>(__TAURI_INVOKE("graph_search", { query })),
 };
 
 /** Events */
 export const events = {
 	gitOutput: makeEvent<GitOutputEvent>("git://output"),
+	jobChunk: makeEvent<JobChunkEvent>("job://chunk"),
+	jobDone: makeEvent<JobDoneEvent>("job://done"),
+	jobProgress: makeEvent<JobProgressEvent>("job://progress"),
+	promptRequest: makeEvent<PromptRequestEvent>("prompt://request"),
+	repoOperationChanged: makeEvent<OperationChangedEvent>("repo://operation-changed"),
 	repoRefsChanged: makeEvent<RefsChangedEvent>("repo://refs-changed"),
 	repoStatusChanged: makeEvent<StatusChangedEvent>("repo://status-changed"),
 };
 
 /* Types */
+export type AppBlameCommit = {
+	sha: string,
+	author: string,
+	author_mail: string,
+	author_time: number | null,
+	summary: string,
+};
+
+export type AppBlameLine = {
+	line_no: number,
+	commit: AppBlameCommit,
+};
+
+export type AppBlameOptions = {
+	ignore_ws: boolean,
+	detect_moves: boolean,
+	detect_copies: boolean,
+};
+
+export type AppBranchInfo = {
+	oid: string | null,
+	head: string | null,
+	upstream: string | null,
+	ahead: number,
+	behind: number,
+};
+
+export type AppCommitDetail = {
+	summary: AppCommitSummary,
+	body: string | null,
+	committer: AppCommitterInfo,
+	signature_present: boolean,
+	files: AppFileChange[],
+};
+
+export type AppCommitOptions = {
+	message: string,
+	amend: boolean,
+	signoff: boolean,
+	no_verify: boolean,
+	all: boolean,
+};
+
+export type AppCommitSummary = {
+	sha: string,
+	short_sha: string,
+	parents: string[],
+	author_name: string,
+	author_email: string,
+	author_time: number | null,
+	committer_time: number | null,
+	subject: string,
+	refs: AppRefLabel[],
+};
+
+export type AppCommitterInfo = {
+	name: string,
+	email: string,
+	time: number | null,
+};
+
+export type AppConflictVersions = {
+	base: number[] | null,
+	ours: number[] | null,
+	theirs: number[] | null,
+	worktree: number[] | null,
+};
+
+export type AppEdge = {
+	from_col: number,
+	to_col: number,
+	kind: AppEdgeKind,
+	color: number,
+};
+
+export type AppEdgeKind = "Straight" | "MergeIn" | "BranchOut";
+
 export type AppError = {
 	kind: ErrorKind,
 	message: string,
 	git_stderr: string | null,
 	hint: Hint | null,
+};
+
+export type AppFileChange = {
+	path: string,
+	old_path: string | null,
+	status: AppFileStatus,
+	additions: number,
+	deletions: number,
+	binary: boolean,
+};
+
+export type AppFileHistoryEntry = {
+	sha: string,
+	parents: string[],
+	author: string,
+	date: number | null,
+	subject: string,
+};
+
+export type AppFileRev = "Head" | "Index" | "Worktree" | ({ Commit: string }) & { Stage?: never } | ({ Stage: number }) & { Commit?: never };
+
+export type AppFileStatus = "Modified" | "Added" | "Deleted" | "Renamed" | "Copied" | "TypeChanged" | "Untracked" | "Ignored" | "Unmerged" | "Unmodified";
+
+export type AppGraphFilter = {
+	refs: string[] | null,
+	include_remotes: boolean,
+	include_tags: boolean,
+	include_stash: boolean,
+	first_parent_only: boolean,
+};
+
+export type AppGraphPage = {
+	commits: AppCommitSummary[],
+	rows: AppGraphRow[],
+	has_more: boolean,
+};
+
+export type AppGraphRow = {
+	sha: string,
+	col: number,
+	color: number,
+	edges: AppEdge[],
+};
+
+export type AppLineSelection = {
+	side: AppSide,
+	start: number,
+	end: number,
+};
+
+export type AppOperationState = "None" | ({ Merging: {
+	commit_id: string | null,
+} }) & { CherryPicking?: never; Rebasing?: never; Reverting?: never } | ({ Rebasing: {
+	step: number,
+	total: number,
+	onto: string | null,
+	branch: string | null,
+} }) & { CherryPicking?: never; Merging?: never; Reverting?: never } | ({ CherryPicking: {
+	commit_id: string | null,
+} }) & { Merging?: never; Rebasing?: never; Reverting?: never } | ({ Reverting: {
+	commit_id: string | null,
+} }) & { CherryPicking?: never; Merging?: never; Rebasing?: never };
+
+export type AppPullMode = "Default" | "Rebase" | "FastForwardOnly";
+
+export type AppPushOptions = {
+	remote: string | null,
+	branch: string | null,
+	set_upstream: boolean,
+	force_with_lease: boolean,
+	tags: boolean,
+};
+
+export type AppRebaseAction = "Pick" | "Reword" | "Edit" | "Squash" | "Fixup" | "Drop";
+
+export type AppRebaseTodoEntry = {
+	action: AppRebaseAction,
+	sha: string,
+	subject: string,
+};
+
+export type AppRefInfo = {
+	name: string,
+	kind: AppRefKind,
+	target_sha: string,
+	upstream: string | null,
+	ahead: number,
+	behind: number,
+};
+
+export type AppRefKind = "LocalBranch" | "RemoteBranch" | "Tag" | "Head" | "Stash";
+
+export type AppRefLabel = {
+	name: string,
+	kind: AppRefKind,
+};
+
+export type AppRepoStatus = {
+	branch: AppBranchInfo,
+	entries: AppStatusEntry[],
+};
+
+export type AppResolution = "Ours" | "Theirs" | "Delete";
+
+export type AppSide = "Original" | "Modified";
+
+export type AppStashEntry = {
+	index: number,
+	name: string,
+	commit_id: string,
+	subject: string,
+	date: string,
+};
+
+export type AppStashPushOptions = {
+	message: string | null,
+	include_untracked: boolean,
+	paths: string[],
+};
+
+export type AppStatusEntry = {
+	path: string,
+	staged: boolean,
+	unstaged: boolean,
+	kind: AppFileStatus,
+	orig_path: string | null,
+	conflict_type: string | null,
 };
 
 export type ErrorKind = "NotARepo" | "GitMissing" | "GitTooOld" | "IndexLocked" | "Conflict" | "DirtyWorktree" | "AuthFailed" | "NonFastForward" | "HookFailed" | "NothingToCommit" | "Network" | "PatchFailed" | "HostApi" | "AiProvider" | "Cancelled" | "Internal";
@@ -63,6 +356,34 @@ export type HostConfig = {
 	host: string,
 	kind: string,
 	apiBaseUrl: string,
+};
+
+export type JobChunkEvent = {
+	id: string,
+	chunk: string,
+};
+
+export type JobDoneEvent = {
+	id: string,
+	success: boolean,
+	error: string | null,
+};
+
+export type JobProgressEvent = {
+	id: string,
+	percent: number | null,
+	message: string,
+};
+
+export type OperationChangedEvent = {
+	root: string,
+	state: AppOperationState,
+};
+
+export type PromptRequestEvent = {
+	id: string,
+	kind: string,
+	prompt: string,
 };
 
 export type RecentRepo = {
@@ -114,6 +435,7 @@ export type Settings = {
 
 export type StatusChangedEvent = {
 	root: string,
+	status: AppRepoStatus | null,
 };
 
 /* Tauri Specta runtime */

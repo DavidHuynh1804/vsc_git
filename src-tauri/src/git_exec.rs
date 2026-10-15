@@ -105,7 +105,11 @@ pub fn create_git_observer() -> git_core::CommandObserver {
 }
 
 pub fn create_git_cli() -> git_core::GitCli {
-    git_core::GitCli::default().with_observer(create_git_observer())
+    let mut cli = git_core::GitCli::default().with_observer(create_git_observer());
+    if let Some((addr, token)) = crate::repo::ipc::get_ipc_addr_token() {
+        cli = crate::repo::ipc::setup_git_env(cli, &addr, &token);
+    }
+    cli
 }
 
 pub fn execute_git(

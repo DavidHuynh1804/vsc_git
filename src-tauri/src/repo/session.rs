@@ -15,10 +15,35 @@ pub struct RepoInfo {
     pub head_branch: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RepoSession {
     pub root: PathBuf,
-    pub head_branch: String,
+    pub head_branch: std::sync::Arc<parking_lot::RwLock<String>>,
+    pub draft_message: std::sync::Arc<parking_lot::RwLock<String>>,
+    pub queue: crate::repo::queue::RepoWriteQueue,
+    pub graph: std::sync::Arc<parking_lot::Mutex<Option<git_read::GraphWalker>>>,
+    pub status_cache: std::sync::Arc<parking_lot::RwLock<Option<git_core::RepoStatus>>>,
+    pub refs_cache: std::sync::Arc<parking_lot::RwLock<Option<Vec<git_read::RefInfo>>>>,
+    pub operation_cache: std::sync::Arc<parking_lot::RwLock<Option<git_core::OperationState>>>,
+}
+
+impl RepoSession {
+    pub fn new(root: PathBuf, head_branch: String) -> Self {
+        Self {
+            root,
+            head_branch: std::sync::Arc::new(parking_lot::RwLock::new(head_branch)),
+            draft_message: std::sync::Arc::new(parking_lot::RwLock::new(String::new())),
+            queue: crate::repo::queue::RepoWriteQueue::new(),
+            graph: std::sync::Arc::new(parking_lot::Mutex::new(None)),
+            status_cache: std::sync::Arc::new(parking_lot::RwLock::new(None)),
+            refs_cache: std::sync::Arc::new(parking_lot::RwLock::new(None)),
+            operation_cache: std::sync::Arc::new(parking_lot::RwLock::new(None)),
+        }
+    }
+
+    pub fn session_for_window(state: &SessionState, window: &Window) -> Option<RepoSession> {
+        state.sessions.read().get(window.label()).cloned()
+    }
 }
 
 #[derive(Default)]
@@ -129,10 +154,10 @@ pub fn open_repo(app: AppHandle, window: Window, path: String) -> Result<RepoInf
         }
     };
 
-    let session = RepoSession {
-        root: canonical_root.clone(),
-        head_branch: head_branch.clone(),
-    };
+    // Start IPC server (askpass / sequence-editor) once per app session.
+    crate::repo::ipc::get_or_start_ipc(app.clone())?;
+
+    let session = RepoSession::new(canonical_root.clone(), head_branch.clone());
 
     if let Some(state) = app.try_state::<SessionState>() {
         state
@@ -163,7 +188,7 @@ pub fn get_current_repo(app: AppHandle, window: Window) -> Result<Option<RepoInf
         if let Some(session) = lock.get(window.label()) {
             return Ok(Some(RepoInfo {
                 root: session.root.to_string_lossy().to_string(),
-                head_branch: session.head_branch.clone(),
+                head_branch: session.head_branch.read().clone(),
             }));
         }
     }
