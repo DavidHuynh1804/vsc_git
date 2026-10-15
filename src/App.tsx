@@ -9,9 +9,12 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { useRepoStore } from "@/stores/repo";
 import { commands, events } from "@/bindings";
 import { AlertCircle, X } from "lucide-react";
+import { useUIStore } from "@/stores/ui";
+import { CreatePrDialog } from "@/views/PullRequest/CreatePrDialog";
 
 export default function App() {
-  const { error, setError, setRepo } = useRepoStore();
+  const { error, setError, setRepo, headBranch } = useRepoStore();
+  const { isCreatePrOpen, setCreatePrOpen } = useUIStore();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Check initial opened repo if any
@@ -55,7 +58,11 @@ export default function App() {
 
       <StatusBar />
       <CommandPalette />
-
+      <CreatePrDialog
+        isOpen={isCreatePrOpen}
+        onClose={() => setCreatePrOpen(false)}
+        currentBranch={headBranch || "main"}
+      />
       {/* Error notification banner */}
       {error && (
         <div className="fixed bottom-8 right-4 z-50 flex max-w-md items-center justify-between gap-3 rounded border border-error bg-vscode-sidebar p-3 shadow-lg text-xs">

@@ -15,6 +15,7 @@ export interface UIState {
   isGitOutputOpen: boolean;
   isCommandPaletteOpen: boolean;
   theme: "dark" | "light" | "system";
+  isCreatePrOpen: boolean;
   tabs: TabItem[];
   activeTabId: string;
 
@@ -26,6 +27,7 @@ export interface UIState {
   toggleCommandPalette: () => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setTheme: (theme: "dark" | "light" | "system") => void;
+  setCreatePrOpen: (open: boolean) => void;
   openTab: (tab: TabItem) => void;
   closeTab: (id: string) => void;
   setActiveTabId: (id: string) => void;
@@ -38,6 +40,7 @@ export const useUIStore = create<UIState>((set) => ({
   isGitOutputOpen: false,
   isCommandPaletteOpen: false,
   theme: "system",
+  isCreatePrOpen: false,
   tabs: [{ id: "welcome", title: "Welcome", closable: false }],
   activeTabId: "welcome",
 
@@ -69,6 +72,7 @@ export const useUIStore = create<UIState>((set) => ({
     }
     set({ theme });
   },
+  setCreatePrOpen: (isCreatePrOpen) => set({ isCreatePrOpen }),
 
   openTab: (tab) =>
     set((state) => {

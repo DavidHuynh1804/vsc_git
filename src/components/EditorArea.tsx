@@ -3,6 +3,8 @@ import { X, GitGraph, FileCode, Sparkles } from "lucide-react";
 import { useUIStore, TabItem } from "@/stores/ui";
 import { WelcomeView } from "@/components/WelcomeView";
 import { useRepoStore } from "@/stores/repo";
+import { SettingsView } from "@/views/Settings/SettingsView";
+import { defaultSettingsDataSource } from "@/settings";
 
 export const EditorArea: React.FC = () => {
   const { tabs, activeTabId, setActiveTabId, closeTab } = useUIStore();
@@ -11,6 +13,10 @@ export const EditorArea: React.FC = () => {
   const renderTabContent = (tab: TabItem) => {
     if (tab.id === "welcome") {
       return <WelcomeView />;
+    }
+
+    if (tab.id === "settings") {
+      return <SettingsView dataSource={defaultSettingsDataSource} />;
     }
 
     if (tab.id === "graph") {
