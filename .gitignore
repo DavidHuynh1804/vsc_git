@@ -11,3 +11,4 @@ src-tauri/gen/
 !.vscode/extensions.json
 .idea/
 *.tsbuildinfo
+/Cargo.lock
