@@ -126,11 +126,20 @@ pub fn send_request_to(addr: &str, token: &str, kind: IpcRequestKind) -> Result<
     }
 }
 
+pub struct IpcListener(pub LocalSocketListener);
+
+impl IpcListener {
+    pub fn accept(&self) -> std::io::Result<LocalSocketStream> {
+        use interprocess::local_socket::traits::Listener;
+        self.0.accept()
+    }
+}
+
 /// Creates a new local socket listener at the given address.
-pub fn create_listener(addr: &str) -> Result<LocalSocketListener, IpcError> {
+pub fn create_listener(addr: &str) -> Result<IpcListener, IpcError> {
     let name = to_socket_name(addr)?;
     let listener = ListenerOptions::new().name(name).create_sync()?;
-    Ok(listener)
+    Ok(IpcListener(listener))
 }
 
 /// Handles a single incoming connection: validates the auth token and executes the handler.
