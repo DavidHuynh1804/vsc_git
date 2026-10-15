@@ -46,6 +46,7 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
+            crate::git_exec::set_global_app_handle(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())

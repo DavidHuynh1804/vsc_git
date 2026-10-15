@@ -1,8 +1,7 @@
 use std::collections::VecDeque;
 use std::path::Path;
-use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
+use std::sync::Arc;
 
 use chrono::Utc;
 use parking_lot::RwLock;
@@ -10,10 +9,19 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Emitter};
 
-use crate::error::{AppError, ErrorKind};
+use crate::error::AppError;
 
 pub const MAX_RING_BUFFER_ENTRIES: usize = 5000;
 static NEXT_OUTPUT_ID: AtomicU64 = AtomicU64::new(1);
+static APP_HANDLE: RwLock<Option<AppHandle>> = RwLock::new(None);
+
+pub fn set_global_app_handle(handle: AppHandle) {
+    *APP_HANDLE.write() = Some(handle);
+}
+
+pub fn get_global_app_handle() -> Option<AppHandle> {
+    APP_HANDLE.read().clone()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 pub struct GitOutputEntry {
@@ -60,11 +68,11 @@ impl GitOutputBuffer {
         self.entries.read().iter().cloned().collect()
     }
 }
+
 pub fn get_global_buffer() -> &'static GitOutputBuffer {
     static BUFFER: parking_lot::RwLock<Option<GitOutputBuffer>> = parking_lot::RwLock::new(None);
 
     if let Some(buf) = BUFFER.read().as_ref() {
-        // Safe because the buffer lives for the entire application duration
         return unsafe { &*(buf as *const GitOutputBuffer) };
     }
 
@@ -75,66 +83,68 @@ pub fn get_global_buffer() -> &'static GitOutputBuffer {
     unsafe { &*(lock.as_ref().unwrap() as *const GitOutputBuffer) }
 }
 
+pub fn create_git_observer() -> git_core::CommandObserver {
+    Arc::new(|record: &git_core::GitCommandRecord| {
+        let entry = GitOutputEntry {
+            id: NEXT_OUTPUT_ID.fetch_add(1, Ordering::SeqCst) as u32,
+            timestamp: Utc::now().timestamp_millis() as f64,
+            cmd: format!("git {}", record.args.join(" ")),
+            cwd: record.cwd.to_string_lossy().to_string(),
+            exit_code: record.exit_code.unwrap_or(-1),
+            duration_ms: record.duration_ms as u32,
+            stdout: String::new(),
+            stderr: record.stderr.clone(),
+        };
+
+        get_global_buffer().push(entry.clone());
+
+        if let Some(app) = get_global_app_handle() {
+            let _ = app.emit("git://output", &entry);
+        }
+    })
+}
+
+pub fn create_git_cli() -> git_core::GitCli {
+    git_core::GitCli::default().with_observer(create_git_observer())
+}
+
 pub fn execute_git(
     cwd: Option<&Path>,
     args: &[&str],
     app: Option<&AppHandle>,
 ) -> Result<std::process::Output, AppError> {
-    let start = Instant::now();
-    let cwd_str = cwd
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|| ".".to_string());
-    let cmd_str = format!("git {}", args.join(" "));
-
-    let mut command = Command::new("git");
-    if let Some(dir) = cwd {
-        command.current_dir(dir);
+    if let Some(app) = app {
+        if get_global_app_handle().is_none() {
+            set_global_app_handle(app.clone());
+        }
     }
-    command.args(args);
 
-    let output = command.output().map_err(|e| {
-        let err = if e.kind() == std::io::ErrorKind::NotFound {
-            AppError::new(
-                ErrorKind::GitMissing,
-                "Git executable not found in PATH. Please install Git.",
-            )
-        } else {
-            AppError::internal(format!("Failed to execute git: {e}"))
-        };
-        err
-    })?;
-
-    let duration_ms = start.elapsed().as_millis() as u64;
-    let exit_code = output.status.code().unwrap_or(-1);
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-
-    let entry = GitOutputEntry {
-        id: NEXT_OUTPUT_ID.fetch_add(1, Ordering::SeqCst) as u32,
-        timestamp: Utc::now().timestamp_millis() as f64,
-        cmd: cmd_str,
-        cwd: cwd_str,
-        exit_code,
-        duration_ms: duration_ms as u32,
-        stdout,
-        stderr,
+    let cli = create_git_cli();
+    let dir = cwd.unwrap_or_else(|| Path::new("."));
+    let opts = git_core::CommandOptions {
+        timeout: Some(std::time::Duration::from_secs(120)),
+        ..Default::default()
     };
 
-    get_global_buffer().push(entry.clone());
-
-    if let Some(app) = app {
-        let _ = app.emit("git://output", &entry);
-    }
-
-    tracing::debug!(
-        cmd = %entry.cmd,
-        cwd = %entry.cwd,
-        exit_code = entry.exit_code,
-        ms = entry.duration_ms,
-        "Executed git command"
-    );
-
+    let raw = cli.exec_raw(dir, args, opts)?;
+    let output = std::process::Output {
+        status: exit_status_from_code(raw.exit_code),
+        stdout: raw.stdout,
+        stderr: raw.stderr.into_bytes(),
+    };
     Ok(output)
+}
+
+#[cfg(unix)]
+fn exit_status_from_code(code: i32) -> std::process::ExitStatus {
+    use std::os::unix::process::ExitStatusExt;
+    std::process::ExitStatus::from_raw(code << 8)
+}
+
+#[cfg(windows)]
+fn exit_status_from_code(code: i32) -> std::process::ExitStatus {
+    use std::os::windows::process::ExitStatusExt;
+    std::process::ExitStatus::from_raw(code as u32)
 }
 
 #[tauri::command]
