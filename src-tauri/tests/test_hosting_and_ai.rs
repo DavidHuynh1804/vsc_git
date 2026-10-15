@@ -15,9 +15,11 @@ use vsc_git_lib::commands::ai::{
 };
 use vsc_git_lib::commands::hosting::{check_scopes, test_host_token_impl};
 use vsc_git_lib::error::ErrorKind;
+static TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 #[tokio::test]
 async fn test_github_test_host_token_wiremock_success_and_scopes() {
+    let _guard = TEST_LOCK.lock().await;
     let mock_store = Arc::new(MockSecretStore::new());
     set_custom_secret_store(Some(mock_store));
 
@@ -68,12 +70,11 @@ async fn test_github_test_host_token_wiremock_success_and_scopes() {
 
     delete_host_token("github.com").expect("delete token");
     assert_eq!(get_host_token("github.com").expect("read token"), None);
-
-    set_custom_secret_store(None);
 }
 
 #[tokio::test]
 async fn test_github_missing_scopes_and_auth_error_wiremock() {
+    let _guard = TEST_LOCK.lock().await;
     let mock_store = Arc::new(MockSecretStore::new());
     set_custom_secret_store(Some(mock_store));
 
@@ -128,12 +129,11 @@ async fn test_github_missing_scopes_and_auth_error_wiremock() {
         "Secret PAT must never appear in error message: {}",
         err.message
     );
-
-    set_custom_secret_store(None);
 }
 
 #[tokio::test]
 async fn test_gitlab_test_host_token_wiremock() {
+    let _guard = TEST_LOCK.lock().await;
     let mock_store = Arc::new(MockSecretStore::new());
     set_custom_secret_store(Some(mock_store));
 
@@ -175,12 +175,11 @@ async fn test_gitlab_test_host_token_wiremock() {
     assert_eq!(res.user.username, "gitlab_dev");
     assert!(res.scope_check.ok);
     assert_eq!(res.scope_check.required_scopes, vec!["api".to_string()]);
-
-    set_custom_secret_store(None);
 }
 
 #[tokio::test]
 async fn test_ai_provider_wiremock_and_secret_redaction() {
+    let _guard = TEST_LOCK.lock().await;
     let mock_store = Arc::new(MockSecretStore::new());
     set_custom_secret_store(Some(mock_store));
 
@@ -241,8 +240,6 @@ async fn test_ai_provider_wiremock_and_secret_redaction() {
 
     delete_ai_key("openai").expect("delete ai key");
     assert_eq!(get_ai_key("openai").expect("read ai key"), None);
-
-    set_custom_secret_store(None);
 }
 
 #[test]
