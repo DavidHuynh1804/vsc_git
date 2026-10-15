@@ -596,6 +596,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use tempfile::tempdir;
 
     #[test]
