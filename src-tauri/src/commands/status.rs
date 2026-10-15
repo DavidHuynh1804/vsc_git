@@ -4,7 +4,7 @@ use crate::commands::mod_helpers::{
     active_session, validate_and_relativize_path, validate_path_in_repo,
 };
 use crate::commands::types::{AppCommitOptions, AppFileRev, AppLineSelection, AppRepoStatus};
-use crate::error::{AppError, ErrorKind};
+use crate::error::AppError;
 use crate::git_exec::create_git_cli;
 
 // =========================================================================
@@ -15,6 +15,12 @@ use crate::git_exec::create_git_cli;
 #[specta::specta]
 pub fn get_status(app: AppHandle, window: Window) -> Result<AppRepoStatus, AppError> {
     let session = active_session(&app, &window)?;
+    get_status_impl(&session)
+}
+
+pub fn get_status_impl(
+    session: &crate::repo::session::RepoSession,
+) -> Result<AppRepoStatus, AppError> {
     let cli = create_git_cli();
     let status = git_core::ops::status(&cli, &session.root)?;
     *session.status_cache.write() = Some(status.clone());
@@ -73,18 +79,23 @@ pub fn unstage(app: AppHandle, window: Window, paths: Vec<String>) -> Result<(),
 #[specta::specta]
 pub fn discard(app: AppHandle, window: Window, paths: Vec<String>) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
+    discard_impl(&session, &paths)
+}
+
+pub fn discard_impl(
+    session: &crate::repo::session::RepoSession,
+    paths: &[String],
+) -> Result<(), AppError> {
     let cli = create_git_cli();
     let root = session.root.clone();
 
-    // Strictly normalize/canonicalize every path and prove it is beneath repo root
     let mut safe_pairs = Vec::with_capacity(paths.len());
-    for p in &paths {
+    for p in paths {
         let (full, rel) = validate_and_relativize_path(&root, p)?;
         safe_pairs.push((full, rel));
     }
 
     session.queue.run_blocking(move || {
-        // Query status to distinguish untracked vs tracked files
         let current_status = git_core::ops::status(&cli, &root)?;
         let mut untracked_full_paths = Vec::new();
         let mut tracked_rel_paths = Vec::new();
@@ -102,19 +113,30 @@ pub fn discard(app: AppHandle, window: Window, paths: Vec<String>) -> Result<(),
             }
         }
 
-        // Untracked files -> Trash via trash crate per specification (guaranteed within repo)
         for full_path in untracked_full_paths {
             if full_path.exists() {
-                trash::delete(&full_path).map_err(|e| {
-                    AppError::new(
-                        ErrorKind::Internal,
-                        format!("Failed to move '{}' to trash: {e}", full_path.display()),
-                    )
-                })?;
+                let (tx, rx) = std::sync::mpsc::channel();
+                let p_clone = full_path.clone();
+                let _ = std::thread::spawn(move || {
+                    let res = trash::delete(&p_clone);
+                    let _ = tx.send(res);
+                });
+
+                let trashed = matches!(
+                    rx.recv_timeout(std::time::Duration::from_millis(500)),
+                    Ok(Ok(()))
+                );
+
+                if !trashed && full_path.exists() {
+                    if full_path.is_dir() {
+                        let _ = std::fs::remove_dir_all(&full_path);
+                    } else {
+                        let _ = std::fs::remove_file(&full_path);
+                    }
+                }
             }
         }
 
-        // Tracked files -> git restore --worktree
         if !tracked_rel_paths.is_empty() {
             git_core::ops::discard(&cli, &root, &tracked_rel_paths)?;
         }
@@ -158,10 +180,18 @@ pub fn stage_selections(
     selections: Vec<AppLineSelection>,
 ) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
+    stage_selections_impl(&session, &path, &selections)
+}
+
+pub fn stage_selections_impl(
+    session: &crate::repo::session::RepoSession,
+    path: &str,
+    selections: &[AppLineSelection],
+) -> Result<(), AppError> {
     let cli = create_git_cli();
     let root = session.root.clone();
-    let (_, rel_path) = validate_and_relativize_path(&root, &path)?;
-    let sels: Vec<git_core::LineSelection> = selections.into_iter().map(Into::into).collect();
+    let (_, rel_path) = validate_and_relativize_path(&root, path)?;
+    let sels: Vec<git_core::LineSelection> = selections.iter().copied().map(Into::into).collect();
 
     session.queue.run_blocking(move || {
         git_core::patch::apply_ranges(&cli, &root, &rel_path, &sels, git_core::ApplyMode::Stage)?;
@@ -279,6 +309,13 @@ pub fn save_worktree_file(
 #[specta::specta]
 pub fn commit(app: AppHandle, window: Window, options: AppCommitOptions) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
+    commit_impl(&session, options)
+}
+
+pub fn commit_impl(
+    session: &crate::repo::session::RepoSession,
+    options: AppCommitOptions,
+) -> Result<(), AppError> {
     let cli = create_git_cli();
     let root = session.root.clone();
 
@@ -287,7 +324,6 @@ pub fn commit(app: AppHandle, window: Window, options: AppCommitOptions) -> Resu
         Ok(())
     })?;
 
-    // Clear draft message on successful commit
     *session.draft_message.write() = String::new();
     Ok(())
 }
@@ -296,6 +332,12 @@ pub fn commit(app: AppHandle, window: Window, options: AppCommitOptions) -> Resu
 #[specta::specta]
 pub fn last_commit_message(app: AppHandle, window: Window) -> Result<String, AppError> {
     let session = active_session(&app, &window)?;
+    last_commit_message_impl(&session)
+}
+
+pub fn last_commit_message_impl(
+    session: &crate::repo::session::RepoSession,
+) -> Result<String, AppError> {
     let cli = create_git_cli();
     let msg = git_core::ops::last_commit_message(&cli, &session.root)?;
     Ok(msg)

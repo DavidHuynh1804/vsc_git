@@ -200,26 +200,25 @@ pub fn push_tag(
 #[specta::specta]
 pub fn fetch(app: AppHandle, window: Window, remote: Option<String>) -> Result<JobId, AppError> {
     let session = active_session(&app, &window)?;
+    let (job_id, _) = spawn_job(app, move |cancel_token, progress_cb| {
+        fetch_impl(&session, remote, Some(progress_cb), Some(cancel_token))
+    });
+    Ok(job_id)
+}
+
+pub fn fetch_impl(
+    session: &crate::repo::session::RepoSession,
+    remote: Option<String>,
+    progress: Option<git_core::ops::ProgressCallback>,
+    cancel: Option<git_core::CancelToken>,
+) -> Result<(), AppError> {
     let cli = create_git_cli();
-    let root = session.root.clone();
     let target = match remote {
         Some(r) => git_core::FetchTarget::Remote(r),
         None => git_core::FetchTarget::All,
     };
-
-    let (job_id, _) = spawn_job(app, move |cancel_token, progress_cb| {
-        git_core::ops::fetch(
-            &cli,
-            &root,
-            target,
-            false,
-            Some(progress_cb),
-            Some(cancel_token),
-        )?;
-        Ok(())
-    });
-
-    Ok(job_id)
+    git_core::ops::fetch(&cli, &session.root, target, false, progress, cancel)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -252,22 +251,22 @@ pub fn push(
     options: Option<AppPushOptions>,
 ) -> Result<JobId, AppError> {
     let session = active_session(&app, &window)?;
-    let cli = create_git_cli();
-    let root = session.root.clone();
-    let push_opts = options.map(Into::into).unwrap_or_default();
-
     let (job_id, _) = spawn_job(app, move |cancel_token, progress_cb| {
-        git_core::ops::push(
-            &cli,
-            &root,
-            push_opts,
-            Some(progress_cb),
-            Some(cancel_token),
-        )?;
-        Ok(())
+        push_impl(&session, options, Some(progress_cb), Some(cancel_token))
     });
-
     Ok(job_id)
+}
+
+pub fn push_impl(
+    session: &crate::repo::session::RepoSession,
+    options: Option<AppPushOptions>,
+    progress: Option<git_core::ops::ProgressCallback>,
+    cancel: Option<git_core::CancelToken>,
+) -> Result<(), AppError> {
+    let cli = create_git_cli();
+    let push_opts = options.map(Into::into).unwrap_or_default();
+    git_core::ops::push(&cli, &session.root, push_opts, progress, cancel)?;
+    Ok(())
 }
 
 #[tauri::command]

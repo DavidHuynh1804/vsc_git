@@ -90,8 +90,12 @@ pub fn get_ipc_addr_token() -> Option<(String, String)> {
 #[tauri::command]
 #[specta::specta]
 pub fn answer_prompt(_app: AppHandle, id: String, value: Option<String>) -> Result<(), AppError> {
-    get_pending_prompts().answer(&id, value);
+    answer_prompt_value(&id, value);
     Ok(())
+}
+
+pub fn answer_prompt_value(id: &str, value: Option<String>) -> bool {
+    get_pending_prompts().answer(id, value)
 }
 
 /// Constant-time string equality check to prevent timing attacks on IPC token.
@@ -127,8 +131,10 @@ pub struct IpcServer {
     _temp_dir: Option<tempfile::TempDir>,
 }
 
+pub type PromptEmitter = Arc<dyn Fn(&PromptRequestEvent) + Send + Sync>;
+
 impl IpcServer {
-    pub fn start(app: AppHandle) -> Result<Self, AppError> {
+    pub fn start_with_emitter(emitter: PromptEmitter) -> Result<Self, AppError> {
         let token = generate_ipc_token();
 
         #[cfg(unix)]
@@ -138,7 +144,6 @@ impl IpcServer {
                 .prefix("vsc_git_ipc_")
                 .tempdir()
                 .map_err(|e| AppError::internal(format!("Failed to create IPC temp dir: {e}")))?;
-            // Set directory permissions to 0700
             let _ = std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700));
             let sock_path = dir.path().join("ipc.sock");
             let addr = sock_path.to_string_lossy().to_string();
@@ -170,7 +175,7 @@ impl IpcServer {
         thread::Builder::new()
             .name("ipc-server".into())
             .spawn(move || {
-                let _ = run_listener_loop(listener, expected_token, app, running_clone);
+                let _ = run_listener_loop(listener, expected_token, emitter, running_clone);
             })
             .map_err(|e| AppError::internal(format!("Failed to spawn IPC listener thread: {e}")))?;
 
@@ -182,6 +187,16 @@ impl IpcServer {
         })
     }
 
+    pub fn start(app: AppHandle) -> Result<Self, AppError> {
+        Self::start_with_emitter(Arc::new(move |evt| {
+            let _ = app.emit("prompt://request", evt);
+        }))
+    }
+
+    pub fn start_standalone() -> Result<Self, AppError> {
+        Self::start_with_emitter(Arc::new(|_| {}))
+    }
+
     pub fn stop(&self) {
         self.running.store(false, Ordering::SeqCst);
     }
@@ -190,7 +205,7 @@ impl IpcServer {
 fn run_listener_loop(
     listener: IpcListener,
     expected_token: String,
-    app: AppHandle,
+    emitter: PromptEmitter,
     running: Arc<AtomicBool>,
 ) -> std::io::Result<()> {
     while running.load(Ordering::SeqCst) {
@@ -206,10 +221,10 @@ fn run_listener_loop(
         };
 
         let expected_token_clone = expected_token.clone();
-        let app_clone = app.clone();
+        let emitter_clone = emitter.clone();
 
         thread::spawn(move || {
-            let _ = handle_single_connection(conn, &expected_token_clone, app_clone);
+            let _ = handle_single_connection(conn, &expected_token_clone, emitter_clone);
         });
     }
     Ok(())
@@ -218,7 +233,7 @@ fn run_listener_loop(
 fn handle_single_connection(
     mut conn: LocalSocketStream,
     expected_token: &str,
-    app: AppHandle,
+    emitter: PromptEmitter,
 ) -> Result<(), AppError> {
     let mut line = String::new();
     {
@@ -259,14 +274,11 @@ fn handle_single_connection(
     let (tx, rx) = channel::<Option<String>>();
     get_pending_prompts().insert(prompt_id.clone(), tx);
 
-    let _ = app.emit(
-        "prompt://request",
-        &PromptRequestEvent {
-            id: prompt_id.clone(),
-            kind: kind_str,
-            prompt: prompt_str,
-        },
-    );
+    emitter(&PromptRequestEvent {
+        id: prompt_id.clone(),
+        kind: kind_str,
+        prompt: prompt_str,
+    });
 
     let answer = rx.recv().ok().flatten();
     let resp = match answer {
