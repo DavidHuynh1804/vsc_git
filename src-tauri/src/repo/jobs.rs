@@ -88,7 +88,7 @@ pub fn cancel_job(_app: AppHandle, id: String) -> Result<(), AppError> {
     Ok(())
 }
 
-pub fn spawn_job<F>(app: AppHandle, f: F) -> (JobId, tokio::task::JoinHandle<()>)
+pub fn spawn_job<F>(app: AppHandle, f: F) -> (JobId, tauri::async_runtime::JoinHandle<()>)
 where
     F: FnOnce(
             git_core::CancelToken,
@@ -116,7 +116,7 @@ where
     let app_for_done = app.clone();
     let cancel_for_task = cancel_token.clone();
 
-    let handle = tokio::task::spawn_blocking(move || {
+    let handle = tauri::async_runtime::spawn_blocking(move || {
         let res = f(cancel_for_task, progress_cb);
         get_global_jobs().remove_job(&id_for_done);
 

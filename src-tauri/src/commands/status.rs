@@ -4,10 +4,18 @@ use crate::commands::mod_helpers::{
     active_session, validate_and_relativize_path, validate_path_in_repo,
 };
 use crate::commands::types::{AppCommitOptions, AppFileRev, AppLineSelection, AppRepoStatus};
-use crate::error::AppError;
+use crate::error::{AppError, ErrorKind};
 use crate::git_exec::create_git_cli;
 
 // =========================================================================
+type TrashHandler = fn(&std::path::Path) -> Result<(), trash::Error>;
+static TRASH_HANDLER: parking_lot::RwLock<Option<TrashHandler>> = parking_lot::RwLock::new(None);
+
+#[doc(hidden)]
+pub fn set_trash_handler_for_test(handler: Option<TrashHandler>) {
+    *TRASH_HANDLER.write() = handler;
+}
+
 // Status group
 // =========================================================================
 
@@ -115,25 +123,18 @@ pub fn discard_impl(
 
         for full_path in untracked_full_paths {
             if full_path.exists() {
-                let (tx, rx) = std::sync::mpsc::channel();
-                let p_clone = full_path.clone();
-                let _ = std::thread::spawn(move || {
-                    let res = trash::delete(&p_clone);
-                    let _ = tx.send(res);
-                });
+                let res = if let Some(handler) = *TRASH_HANDLER.read() {
+                    handler(&full_path)
+                } else {
+                    trash::delete(&full_path)
+                };
 
-                let trashed = matches!(
-                    rx.recv_timeout(std::time::Duration::from_millis(500)),
-                    Ok(Ok(()))
-                );
-
-                if !trashed && full_path.exists() {
-                    if full_path.is_dir() {
-                        let _ = std::fs::remove_dir_all(&full_path);
-                    } else {
-                        let _ = std::fs::remove_file(&full_path);
-                    }
-                }
+                res.map_err(|e| {
+                    AppError::new(
+                        ErrorKind::Internal,
+                        format!("Failed to move '{}' to trash: {e}", full_path.display()),
+                    )
+                })?;
             }
         }
 

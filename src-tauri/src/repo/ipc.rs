@@ -321,9 +321,33 @@ pub fn find_helper_binary(name: &str) -> Option<PathBuf> {
         Path::new("../target/debug").join(&bin_name),
         Path::new("../target/release").join(&bin_name),
     ];
-    for c in candidates {
+    for c in &candidates {
         if c.exists() {
-            return c.canonicalize().ok().or(Some(c));
+            return c.canonicalize().ok().or_else(|| Some(c.clone()));
+        }
+    }
+
+    // 3. Check sidecar names with target triple
+    let triples = [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+        "x86_64-pc-windows-msvc",
+    ];
+    for t in triples {
+        #[cfg(windows)]
+        let sname = format!("{name}-{t}.exe");
+        #[cfg(not(windows))]
+        let sname = format!("{name}-{t}");
+
+        let sidecar_candidates = [
+            Path::new("src-tauri/binaries").join(&sname),
+            Path::new("binaries").join(&sname),
+            Path::new("../src-tauri/binaries").join(&sname),
+        ];
+        for sc in &sidecar_candidates {
+            if sc.exists() {
+                return sc.canonicalize().ok().or_else(|| Some(sc.clone()));
+            }
         }
     }
 

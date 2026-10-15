@@ -124,6 +124,12 @@ fn test_discard_untracked() {
 
     let session = RepoSession::new(repo_path.to_path_buf(), "main".to_string());
 
+    // Configure test trash handler to avoid headless AppleScript timeout
+    vsc_git_lib::commands::status::set_trash_handler_for_test(Some(|p| {
+        let _ = std::fs::remove_file(p);
+        Ok(())
+    }));
+
     // Create an untracked file
     let untracked_file = repo_path.join("untracked_file.txt");
     fs::write(&untracked_file, "discard me please\n").unwrap();
@@ -132,6 +138,8 @@ fn test_discard_untracked() {
     // Discard untracked file via discard_impl (moves to trash)
     discard_impl(&session, &["untracked_file.txt".to_string()]).expect("discard_impl");
 
+    // Reset test trash handler
+    vsc_git_lib::commands::status::set_trash_handler_for_test(None);
     // Verify file is gone from repo working tree (moved to trash)
     assert!(!untracked_file.exists());
 }

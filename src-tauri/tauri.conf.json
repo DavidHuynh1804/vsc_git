@@ -27,5 +27,11 @@
   },
   "plugins": {
     "dialog": {}
+  },
+  "bundle": {
+    "externalBin": [
+      "binaries/vsc-git-askpass",
+      "binaries/vsc-git-sequence-editor"
+    ]
   }
 }
