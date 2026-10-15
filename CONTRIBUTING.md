@@ -12,6 +12,7 @@
 - Mở PR vào `main` bằng `gh pr create` khi feature xong; PR mô tả phần đã làm + cách kiểm chứng.
 
 ## Chất lượng
+- Trước khi chạy `cargo test` lần đầu (hoặc sau khi clean), chạy `pnpm sidecars` để compile và copy sidecar binaries vào `src-tauri/binaries/` (bắt buộc cho `tauri-build`).
 - Rust: `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, `cargo test` phải pass.
 - Frontend: `pnpm lint`, `pnpm typecheck`, `pnpm test` phải pass.
 - Không sao chép code/asset từ extension Git Graph (mhutchie) — license riêng. Tham khảo VS Code git extension (MIT) được.
