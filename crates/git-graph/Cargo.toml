@@ -1,0 +1,12 @@
+[package]
+name = "git-graph"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+insta = { version = "1", features = ["yaml"] }
+rand = "0.8"
