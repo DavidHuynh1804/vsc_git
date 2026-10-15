@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -94,6 +95,9 @@ pub struct Settings {
 
     #[serde(rename = "ai.disabledRepos", default)]
     pub ai_disabled_repos: Vec<String>,
+
+    #[serde(rename = "ai.consents", default)]
+    pub ai_consents: HashMap<String, Vec<String>>,
 
     #[serde(rename = "hosts", default = "default_hosts")]
     pub hosts: Vec<HostConfig>,
@@ -207,9 +211,49 @@ impl Default for Settings {
             ai_max_diff_tokens: default_20000(),
             ai_exclude_globs: default_exclude_globs(),
             ai_disabled_repos: Vec::new(),
+            ai_consents: HashMap::new(),
             hosts: default_hosts(),
             ui_theme: default_system(),
             update_channel: default_stable(),
+        }
+    }
+}
+pub fn normalize_repo_path(path: &str) -> String {
+    let p = Path::new(path);
+    if let Ok(canon) = p.canonicalize() {
+        canon.to_string_lossy().replace('\\', "/")
+    } else {
+        path.trim_end_matches(['/', '\\']).replace('\\', "/")
+    }
+}
+
+impl Settings {
+    pub fn has_ai_consent(&self, repo_path: &str, provider: &str) -> bool {
+        let norm = normalize_repo_path(repo_path);
+        let prov = provider.to_lowercase();
+        if let Some(list) = self.ai_consents.get(&norm) {
+            if list.iter().any(|p| p.eq_ignore_ascii_case(&prov)) {
+                return true;
+            }
+        }
+        if let Some(list) = self.ai_consents.get(repo_path) {
+            if list.iter().any(|p| p.eq_ignore_ascii_case(&prov)) {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn set_ai_consent(&mut self, repo_path: &str, provider: &str, granted: bool) {
+        let norm = normalize_repo_path(repo_path);
+        let prov = provider.to_lowercase();
+        let list = self.ai_consents.entry(norm).or_default();
+        if granted {
+            if !list.iter().any(|p| p.eq_ignore_ascii_case(&prov)) {
+                list.push(prov);
+            }
+        } else {
+            list.retain(|p| !p.eq_ignore_ascii_case(&prov));
         }
     }
 }

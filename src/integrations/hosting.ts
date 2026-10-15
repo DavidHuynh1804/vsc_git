@@ -1,4 +1,4 @@
-import { HostConfig } from "@/bindings";
+import { commands, events, HostConfig } from "@/bindings";
 import {
   CurrentUser,
   CreatePrRequest,
@@ -102,29 +102,98 @@ export class UnavailableFeatureError extends Error {
 export class TauriHostingDataSource implements HostingDataSource {
   async testConnection(
     host: HostConfig,
-    _token?: string
+    token?: string
   ): Promise<{ user: CurrentUser; scopeCheck: ScopeCheckResult }> {
-    throw new UnavailableFeatureError(`kiểm tra kết nối host ${host.host} (test_host_token)`);
+    const res = await commands.testHostToken(host, token ?? null);
+    if (res.status === "error") {
+      throw new Error(res.error.message);
+    }
+    return {
+      user: res.data.user,
+      scopeCheck: res.data.scopeCheck,
+    };
   }
 
-  async setHostToken(host: string, _token: string): Promise<void> {
-    throw new UnavailableFeatureError(`lưu token host ${host} (set_host_token)`);
+  async setHostToken(host: string, token: string): Promise<void> {
+    const res = await commands.setHostToken(host, token);
+    if (res.status === "error") {
+      throw new Error(res.error.message);
+    }
   }
 
-  async createPullRequest(_req: CreatePrRequest): Promise<PullRequestResult> {
-    throw new UnavailableFeatureError("tạo Pull Request (create_pull_request)");
+  async createPullRequest(req: CreatePrRequest): Promise<PullRequestResult> {
+    const res = await commands.createPullRequest(req);
+    if (res.status === "error") {
+      throw new Error(res.error.message);
+    }
+    return res.data;
   }
 
-  async searchReviewers(_host: string, _query: string): Promise<Reviewer[]> {
-    return [];
+  async searchReviewers(host: string, query: string): Promise<Reviewer[]> {
+    const res = await commands.searchReviewers(host, query);
+    if (res.status === "error") {
+      throw new Error(res.error.message);
+    }
+    return res.data;
   }
 
-  async checkBranchPushed(_headBranch: string): Promise<boolean> {
-    return false;
+  async checkBranchPushed(headBranch: string): Promise<boolean> {
+    const res = await commands.checkBranchPushed(headBranch);
+    if (res.status === "error") {
+      throw new Error(res.error.message);
+    }
+    return res.data;
   }
 
   async pushBranch(branch: string): Promise<void> {
-    throw new UnavailableFeatureError(`push branch ${branch}`);
+    let targetJobId: string | null = null;
+    const bufferedDone = new Map<string, { success: boolean; error: string | null }>();
+    const { promise, resolve, reject } = Promise.withResolvers<void>();
+
+    let unlisten: () => void = () => {};
+
+    const handleDone = (done: { success: boolean; error: string | null }) => {
+      unlisten();
+      if (done.success) {
+        resolve();
+      } else {
+        reject(new Error(done.error ?? `Failed to push branch ${branch}`));
+      }
+    };
+
+    unlisten = await events.jobDone.listen((e) => {
+      if (targetJobId !== null) {
+        if (e.payload.id === targetJobId) {
+          handleDone({ success: e.payload.success, error: e.payload.error });
+        }
+      } else {
+        bufferedDone.set(e.payload.id, {
+          success: e.payload.success,
+          error: e.payload.error,
+        });
+      }
+    });
+
+    const res = await commands.push({
+      remote: null,
+      branch,
+      set_upstream: true,
+      force_with_lease: false,
+      tags: false,
+    });
+
+    if (res.status === "error") {
+      unlisten();
+      throw new Error(res.error.message);
+    }
+
+    targetJobId = res.data;
+    const done = bufferedDone.get(targetJobId);
+    if (done) {
+      handleDone(done);
+    }
+
+    return promise;
   }
 }
 

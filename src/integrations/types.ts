@@ -96,6 +96,7 @@ export interface AiDataSource {
     head: string,
     onChunk: (chunk: string) => void
   ): Promise<{ title: string; body: string }>;
+  generateCommit?(onChunk?: (chunk: string) => void): Promise<string>;
 }
 
 export interface AiConsentDataSource {
