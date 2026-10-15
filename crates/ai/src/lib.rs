@@ -4,6 +4,7 @@ pub mod postprocess;
 pub mod prompt;
 pub mod provider;
 pub mod redact;
+pub mod service;
 
 pub use diff_budget::{
     apply_diff_budget, estimate_tokens, parse_gitattributes_generated, DiffBudgetOptions,
@@ -20,3 +21,4 @@ pub use provider::{
     ChatMessage, ClaudeProvider, GenerateRequest, LlmProvider, OllamaProvider, OpenAICompatProvider,
 };
 pub use redact::{redact_diff, redact_text};
+pub use service::{generate_commit_message, AiSettings};
