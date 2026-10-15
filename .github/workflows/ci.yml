@@ -2,11 +2,34 @@ name: CI
 
 on:
   push:
-    branches: ["main", "feat/**", "fix/**"]
+    branches: ["main", "feat/**", "fix/**", "ci/**"]
   pull_request:
     branches: ["main"]
 
 jobs:
+  supply-chain:
+    name: Supply Chain Policy (Rust Crate Age)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run supply-chain unit tests
+        run: node --test scripts/check-crate-age.test.mjs
+
+      - name: Check Rust crate release age
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/check-crate-age.mjs
+
   check-and-build:
     name: CI (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
