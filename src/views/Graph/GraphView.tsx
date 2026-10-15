@@ -28,6 +28,7 @@ import {
   type ContextMenuTarget,
 } from "@/components/graph/GraphContextMenu";
 import { ConfirmDialog } from "@/components/graph/ConfirmDialog";
+import { OperationBanner } from "@/components/OperationBanner";
 import { useUIStore } from "@/stores/ui";
 import { Sparkles } from "lucide-react";
 
@@ -456,6 +457,9 @@ export const GraphView: React.FC<GraphViewProps> = ({
           });
         }}
       />
+      {/* In-progress operation banner */}
+      <OperationBanner />
+
 
       {/* Main Table Area */}
       <div className="flex flex-1 flex-col overflow-hidden min-h-0 relative">
