@@ -1,4 +1,5 @@
 import { AiConsentDataSource, AiDataSource } from "./types";
+import { UnavailableFeatureError } from "./hosting";
 
 const PROVIDER_DEFAULT_MODELS: Record<string, string[]> = {
   claude: ["claude-haiku-5-5", "claude-sonnet-5-5"],
@@ -56,15 +57,15 @@ export class MockAiDataSource implements AiDataSource {
 
 export class TauriAiDataSource implements AiDataSource {
   async listModels(provider: string, _baseUrl?: string | null): Promise<string[]> {
-    throw new Error(`Listing models for ${provider} is pending M4 backend AI commands.`);
+    throw new UnavailableFeatureError(`liệt kê model cho provider ${provider} (ai_list_models)`);
   }
 
   async setAiKey(provider: string, _key: string): Promise<void> {
-    throw new Error(`Saving AI key for ${provider} is pending M4 backend keyring commands.`);
+    throw new UnavailableFeatureError(`lưu API key cho ${provider} (set_ai_key)`);
   }
 
   async testProvider(provider: string, _model?: string, _baseUrl?: string | null): Promise<string> {
-    throw new Error(`Testing AI provider ${provider} is pending M4 backend commands.`);
+    throw new UnavailableFeatureError(`kiểm tra kết nối AI provider ${provider} (ai_test_provider)`);
   }
 
   async generatePr(
@@ -72,7 +73,7 @@ export class TauriAiDataSource implements AiDataSource {
     _head: string,
     _onChunk: (chunk: string) => void
   ): Promise<{ title: string; body: string }> {
-    throw new Error("AI PR generation is pending M4 backend AI commands.");
+    throw new UnavailableFeatureError("sinh nội dung PR bằng AI (ai_generate_pr)");
   }
 }
 
@@ -111,5 +112,8 @@ export class LocalStorageAiConsentDataSource implements AiConsentDataSource {
   }
 }
 
-export const defaultAiDataSource = new TauriAiDataSource();
+export const defaultAiDataSource =
+  import.meta.env?.VITE_USE_MOCK === "true"
+    ? new MockAiDataSource()
+    : new TauriAiDataSource();
 export const defaultAiConsentDataSource = new LocalStorageAiConsentDataSource();

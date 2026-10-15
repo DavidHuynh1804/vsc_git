@@ -14,6 +14,7 @@ import { SettingsDataSource } from "@/settings/types";
 import { defaultSettingsDataSource } from "@/settings";
 import { CiBadge } from "@/components/CiBadge";
 import { AiConsentDialog } from "@/views/Settings/AiConsentDialog";
+import { useRepoStore } from "@/stores/repo";
 import {
   GitPullRequest,
   Sparkles,
@@ -75,6 +76,7 @@ export const CreatePrDialog: React.FC<CreatePrDialogProps> = ({
   provider,
   aiBaseUrl,
 }) => {
+  const { setError } = useRepoStore();
   const [activeProvider, setActiveProvider] = useState(provider ?? "claude");
   const [activeBaseUrl, setActiveBaseUrl] = useState<string | null | undefined>(aiBaseUrl);
 
@@ -192,8 +194,9 @@ export const CreatePrDialog: React.FC<CreatePrDialogProps> = ({
       await hostingDataSource.pushBranch(head);
       setIsPushed(true);
     } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to push branch");
-    } finally {
+      const msg = err instanceof Error ? err.message : "Failed to push branch";
+      setSubmitError(msg);
+      setError(msg);
       setIsPushing(false);
     }
   };
@@ -209,7 +212,9 @@ export const CreatePrDialog: React.FC<CreatePrDialogProps> = ({
         setTitle(result.title);
       }
     } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : "AI generation failed");
+      const msg = err instanceof Error ? err.message : "AI generation failed";
+      setSubmitError(msg);
+      setError(msg);
     } finally {
       setIsGeneratingAi(false);
     }
@@ -277,7 +282,9 @@ export const CreatePrDialog: React.FC<CreatePrDialogProps> = ({
       });
       setCreatedPr(pr);
     } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to create pull request");
+      const msg = err instanceof Error ? err.message : "Failed to create pull request";
+      setSubmitError(msg);
+      setError(msg);
     } finally {
       setIsSubmitting(false);
     }

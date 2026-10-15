@@ -91,20 +91,28 @@ export class MockHostingDataSource implements HostingDataSource {
     this.pushedBranches.add(branch);
   }
 }
+export class UnavailableFeatureError extends Error {
+  public readonly kind = "unavailable" as const;
+  constructor(featureName: string) {
+    super(`Tính năng ${featureName} chưa được backend hỗ trợ.`);
+    this.name = "UnavailableFeatureError";
+  }
+}
+
 export class TauriHostingDataSource implements HostingDataSource {
   async testConnection(
     host: HostConfig,
     _token?: string
   ): Promise<{ user: CurrentUser; scopeCheck: ScopeCheckResult }> {
-    throw new Error(`Hosting integration for ${host.host} is pending M4 backend commands.`);
+    throw new UnavailableFeatureError(`kiểm tra kết nối host ${host.host} (test_host_token)`);
   }
 
   async setHostToken(host: string, _token: string): Promise<void> {
-    throw new Error(`Token storage for ${host} is pending M4 backend keyring commands.`);
+    throw new UnavailableFeatureError(`lưu token host ${host} (set_host_token)`);
   }
 
   async createPullRequest(_req: CreatePrRequest): Promise<PullRequestResult> {
-    throw new Error("Pull request creation is pending M4 backend commands.");
+    throw new UnavailableFeatureError("tạo Pull Request (create_pull_request)");
   }
 
   async searchReviewers(_host: string, _query: string): Promise<Reviewer[]> {
@@ -116,8 +124,11 @@ export class TauriHostingDataSource implements HostingDataSource {
   }
 
   async pushBranch(branch: string): Promise<void> {
-    throw new Error(`Push command for ${branch} is pending M1 sync backend commands.`);
+    throw new UnavailableFeatureError(`push branch ${branch}`);
   }
 }
 
-export const defaultHostingDataSource = new TauriHostingDataSource();
+export const defaultHostingDataSource =
+  import.meta.env?.VITE_USE_MOCK === "true"
+    ? new MockHostingDataSource()
+    : new TauriHostingDataSource();
