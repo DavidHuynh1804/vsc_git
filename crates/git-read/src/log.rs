@@ -153,6 +153,15 @@ impl GraphWalker {
         })
     }
 
+    pub fn reset(&mut self) -> Result<(), ReadError> {
+        let fresh = Self::new(self.repo.clone(), self.filter.clone())?;
+        self.ref_map = fresh.ref_map;
+        self.lane_state = fresh.lane_state;
+        self.iter = fresh.iter;
+        self.peeked = fresh.peeked;
+        Ok(())
+    }
+
     pub fn lane_state(&self) -> &LaneState {
         &self.lane_state
     }

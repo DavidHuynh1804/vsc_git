@@ -161,4 +161,10 @@ fn test_walker_paging_and_first_parent_and_stash() {
         .iter()
         .any(|c| c.refs.iter().any(|r| r.kind == RefKind::Stash));
     assert!(has_stash_commit);
+
+    // 5. Test walker reset
+    walker_paged.reset().unwrap();
+    let reset_page1 = walker_paged.next_page(3).unwrap();
+    assert_eq!(reset_page1.commits.len(), 3);
+    assert!(reset_page1.has_more);
 }
