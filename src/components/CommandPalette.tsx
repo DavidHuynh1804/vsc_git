@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Search, FolderOpen, Terminal, Settings, Sun, Moon, RefreshCw, FileText } from "lucide-react";
+import { Search, FolderOpen, Terminal, Settings, Sun, Moon, RefreshCw, FileText, GitGraph } from "lucide-react";
 import { useUIStore } from "@/stores/ui";
 import { useRepoStore } from "@/stores/repo";
 import { useScmStore } from "@/scm/scmStore";
@@ -126,6 +126,16 @@ export const CommandPalette: React.FC = () => {
         category: "View",
         title: "Show Source Control",
         action: () => setActiveActivity("changes"),
+      },
+      {
+        id: "open-graph",
+        category: "Git",
+        title: "Open Graph",
+        icon: GitGraph,
+        action: () => {
+          setActiveActivity("graph");
+          openTab({ id: "graph", title: "Git Graph", closable: true });
+        },
       },
       {
         id: "view-graph",
