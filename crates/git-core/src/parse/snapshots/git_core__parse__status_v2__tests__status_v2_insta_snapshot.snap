@@ -1,0 +1,64 @@
+---
+source: crates/git-core/src/parse/status_v2.rs
+expression: status
+---
+branch:
+  oid: abcdef1234567890abcdef1234567890abcdef12
+  head: feat/git-core
+  upstream: origin/feat/git-core
+  ahead: 2
+  behind: 0
+  is_detached: false
+  is_initial: false
+entries:
+  - path: src/lib.rs
+    kind:
+      Ordinary:
+        staged: Modified
+        unstaged: Unmodified
+        submodule:
+          is_submodule: false
+          commit_changed: false
+          modified: false
+          untracked: false
+        head_mode: "100644"
+        index_mode: "100644"
+        worktree_mode: "100644"
+        head_sha: abc1234
+        index_sha: def5678
+  - path: src/new.rs
+    kind:
+      RenamedOrCopied:
+        staged: Renamed
+        unstaged: Unmodified
+        submodule:
+          is_submodule: false
+          commit_changed: false
+          modified: false
+          untracked: false
+        head_mode: "100644"
+        index_mode: "100644"
+        worktree_mode: "100644"
+        head_sha: "1111222"
+        index_sha: "3333444"
+        is_rename: true
+        score: 95
+        orig_path: src/old.rs
+  - path: merge.txt
+    kind:
+      Unmerged:
+        conflict_type: UU
+        submodule:
+          is_submodule: false
+          commit_changed: false
+          modified: false
+          untracked: false
+        stage1_mode: "100644"
+        stage2_mode: "100644"
+        stage3_mode: "100644"
+        worktree_mode: "100644"
+        stage1_sha: a
+        stage2_sha: b
+        stage3_sha: c
+  - path: untracked.rs
+    kind: Untracked
