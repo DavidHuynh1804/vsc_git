@@ -1,6 +1,7 @@
 pub mod blame;
 pub mod branch;
 pub mod commit;
+pub mod conflict;
 pub mod content;
 pub mod history;
 pub mod stage;
@@ -15,6 +16,10 @@ pub use branch::{
     rename_branch, set_upstream, RefInfo, RefKind,
 };
 pub use commit::{commit, last_commit_message, CommitOptions};
+pub use conflict::{
+    conflict_kind, conflict_versions, count_markers, mark_resolved, resolve_with, ConflictKind,
+    ConflictVersions, Resolution,
+};
 pub use content::{file_content, unified_diff, FileRev};
 pub use history::{file_history, parse_file_history, FileHistoryEntry};
 pub use stage::{discard, discard_all, repo_has_commits, stage, stage_all, unstage, unstage_all};

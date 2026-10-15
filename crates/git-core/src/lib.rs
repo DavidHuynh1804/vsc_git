@@ -9,14 +9,16 @@ pub use cli::{
 };
 pub use error::{ErrorKind, GitError};
 pub use ops::{
-    blame, checkout, checkout_detached, commit, create_branch, create_tag, delete_branch,
-    delete_tag, discard, discard_all, fetch, file_content, file_history, last_commit_message,
-    list_refs, op_abort, op_continue, op_skip, operation_state, parse_file_history,
-    parse_progress_line, parse_progress_stream, pull, push, rename_branch, repo_has_commits,
-    set_upstream, stage, stage_all, stash_apply, stash_drop, stash_list, stash_pop, stash_push,
-    stash_show, status, unified_diff, unstage, unstage_all, BlameOptions, CommitOptions,
-    FetchTarget, FileHistoryEntry, FileRev, OperationKind, OperationState, Progress,
-    ProgressCallback, PullMode, PushOptions, RefInfo, RefKind, StashEntry, StashPushOptions,
+    blame, checkout, checkout_detached, commit, conflict_kind, conflict_versions, count_markers,
+    create_branch, create_tag, delete_branch, delete_tag, discard, discard_all, fetch,
+    file_content, file_history, last_commit_message, list_refs, mark_resolved, op_abort,
+    op_continue, op_skip, operation_state, parse_file_history, parse_progress_line,
+    parse_progress_stream, pull, push, rename_branch, repo_has_commits, resolve_with, set_upstream,
+    stage, stage_all, stash_apply, stash_drop, stash_list, stash_pop, stash_push, stash_show,
+    status, unified_diff, unstage, unstage_all, BlameOptions, CommitOptions, ConflictKind,
+    ConflictVersions, FetchTarget, FileHistoryEntry, FileRev, OperationKind, OperationState,
+    Progress, ProgressCallback, PullMode, PushOptions, RefInfo, RefKind, Resolution, StashEntry,
+    StashPushOptions,
 };
 pub use parse::{
     parse_blame, parse_status_v2, BlameCommit, BlameLine, BranchInfo, FileStatus, RepoStatus,
