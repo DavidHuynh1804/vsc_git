@@ -24,21 +24,6 @@ pub use parse::{
     parse_blame, parse_status_v2, BlameCommit, BlameLine, BranchInfo, FileStatus, RepoStatus,
     StatusEntry, StatusEntryKind, SubmoduleState,
 };
-pub use patch::{apply_ranges, build_range_patch, hunk_selections, ApplyMode, LineSelection, Side};
-
-/// Inclusive line range (1-based index) in file coordinates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub struct LineRange {
-    pub start: u32,
-    pub end: u32,
-}
-
-impl LineRange {
-    pub fn new(start: u32, end: u32) -> Self {
-        Self { start, end }
-    }
-
-    pub fn on_side(self, side: Side) -> LineSelection {
-        LineSelection::new(side, self.start, self.end)
-    }
-}
+pub use patch::{
+    apply_ranges, build_range_patch, hunk_selections, ApplyMode, LineRange, LineSelection, Side,
+};
