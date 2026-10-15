@@ -1,5 +1,6 @@
 pub mod avatar_cache;
 pub mod github;
+pub mod gitlab;
 pub mod host;
 pub mod rate_limit;
 pub mod remote_url;
@@ -9,6 +10,7 @@ pub use avatar_cache::{
     DEFAULT_AVATAR_TTL,
 };
 pub use github::GitHubHost;
+pub use gitlab::GitLabHost;
 pub use host::{
     Check, CiState, CiStatus, CreatePr, CurrentUser, Host, PullRequest, Reviewer, Target,
 };
