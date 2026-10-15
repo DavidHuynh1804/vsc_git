@@ -1,0 +1,13 @@
+---
+source: crates/git-graph/tests/snapshot_tests.rs
+expression: ascii
+---
+*   m1
+|\
+| | *   m2
+|/|/
+| *   b2
+| |
+* |   a2
+|/
+*   root
