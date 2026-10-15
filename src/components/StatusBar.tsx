@@ -1,28 +1,41 @@
 import React, { useEffect } from "react";
-import { GitBranch, Terminal, RefreshCw, CheckCircle2, AlertTriangle } from "lucide-react";
+import { GitBranch, Terminal, RefreshCw, CheckCircle2, X } from "lucide-react";
 import { useRepoStore } from "@/stores/repo";
 import { useUIStore } from "@/stores/ui";
+import { useScmStore } from "@/scm/scmStore";
 import { commands } from "@/bindings";
 
 export const StatusBar: React.FC = () => {
   const { headBranch, gitVersion, setGitVersion } = useRepoStore();
   const { isGitOutputOpen, toggleGitOutput } = useUIStore();
+  const { status, activeJobs, sync, cancelJob } = useScmStore();
 
   useEffect(() => {
-    commands.gitVersion().then((res) => {
-      if (res.status === "ok") {
-        setGitVersion(res.data);
-      }
-    });
+    if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+      commands.gitVersion().then((res) => {
+        if (res.status === "ok") {
+          setGitVersion(res.data);
+        }
+      });
+    }
   }, [setGitVersion]);
+
+  const currentBranch = status?.branch.head || headBranch;
+  const ahead = status?.branch.ahead ?? 0;
+  const behind = status?.branch.behind ?? 0;
+
+  const jobsList = Array.from(activeJobs.values());
 
   return (
     <footer className="flex h-6 w-full items-center justify-between bg-vscode-statusbar px-2 text-[11px] text-white select-none">
       <div className="flex items-center gap-3">
-        {headBranch ? (
-          <div className="inline-flex items-center gap-1 hover:bg-vscode-hover px-1.5 py-0.5 rounded cursor-pointer">
+        {currentBranch ? (
+          <div
+            title={`Current branch: ${currentBranch}`}
+            className="inline-flex items-center gap-1 hover:bg-vscode-hover px-1.5 py-0.5 rounded cursor-pointer"
+          >
             <GitBranch className="h-3 w-3" />
-            <span>{headBranch}</span>
+            <span>{currentBranch}</span>
           </div>
         ) : (
           <div className="inline-flex items-center gap-1 text-white opacity-80 px-1.5 py-0.5">
@@ -30,10 +43,40 @@ export const StatusBar: React.FC = () => {
           </div>
         )}
 
-        <div className="inline-flex items-center gap-1 hover:bg-vscode-hover px-1.5 py-0.5 rounded cursor-pointer opacity-90">
+        <button
+          type="button"
+          onClick={() => void sync()}
+          title="Sync with remote (Click to pull and push)"
+          className="inline-flex items-center gap-1 hover:bg-vscode-hover px-1.5 py-0.5 rounded cursor-pointer opacity-90"
+        >
           <RefreshCw className="h-2.5 w-2.5" />
-          <span>↓0 ↑0</span>
-        </div>
+          <span>
+            ↓{behind} ↑{ahead}
+          </span>
+        </button>
+
+        {/* Active background jobs */}
+        {jobsList.map((job) => (
+          <div
+            key={job.jobId}
+            className="inline-flex items-center gap-1.5 bg-vscode-hover px-2 py-0.5 rounded text-[10px]"
+          >
+            <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+            <span>
+              {job.title} {job.percent !== undefined ? `(${job.percent}%)` : "..."}
+            </span>
+            {job.cancelable !== false && (
+              <button
+                type="button"
+                title="Cancel job"
+                onClick={() => void cancelJob(job.jobId)}
+                className="rounded p-0.5 hover:bg-vscode-active hover:text-error"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </div>
+        ))}
 
         {gitVersion && (
           <div
@@ -58,11 +101,6 @@ export const StatusBar: React.FC = () => {
           <Terminal className="h-3 w-3" />
           <span>Git Output</span>
         </button>
-
-        <div className="inline-flex items-center gap-1 opacity-75 px-1">
-          <AlertTriangle className="h-2.5 w-2.5" />
-          <span>M0 Shell</span>
-        </div>
       </div>
     </footer>
   );

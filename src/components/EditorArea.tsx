@@ -1,7 +1,10 @@
 import React from "react";
-import { X, GitGraph, FileCode, Sparkles } from "lucide-react";
+import { X, Sparkles } from "lucide-react";
 import { useUIStore, TabItem } from "@/stores/ui";
 import { WelcomeView } from "@/components/WelcomeView";
+import { DiffView } from "@/views/Diff/DiffView";
+import { GraphView } from "@/views/Graph/GraphView";
+import { useScmStore } from "@/scm/scmStore";
 import { useRepoStore } from "@/stores/repo";
 import { SettingsView } from "@/views/Settings/SettingsView";
 import { defaultSettingsDataSource } from "@/settings";
@@ -9,6 +12,7 @@ import { defaultSettingsDataSource } from "@/settings";
 export const EditorArea: React.FC = () => {
   const { tabs, activeTabId, setActiveTabId, closeTab } = useUIStore();
   const { repoName, headBranch } = useRepoStore();
+  const { activeDiff } = useScmStore();
 
   const renderTabContent = (tab: TabItem) => {
     if (tab.id === "welcome") {
@@ -20,28 +24,14 @@ export const EditorArea: React.FC = () => {
     }
 
     if (tab.id === "graph") {
-      return (
-        <div className="flex h-full w-full flex-col items-center justify-center p-8 text-center text-vscode-muted gap-3">
-          <GitGraph className="h-12 w-12 text-vscode-accent opacity-80" />
-          <h2 className="text-base font-semibold text-vscode-fg">Git Graph (Milestone 2)</h2>
-          <p className="max-w-md text-xs leading-relaxed">
-            Fast, interactive commit graph with topological lanes, commit details, compare diffs,
-            and 60 FPS virtualization for repositories with 200k+ commits.
-          </p>
-        </div>
-      );
+      return <GraphView />;
     }
 
-    if (tab.id.startsWith("diff-")) {
-      return (
-        <div className="flex h-full w-full flex-col items-center justify-center p-8 text-center text-vscode-muted gap-3">
-          <FileCode className="h-12 w-12 text-vscode-accent opacity-80" />
-          <h2 className="text-base font-semibold text-vscode-fg">Monaco Diff Editor (Milestone 1)</h2>
-          <p className="max-w-md text-xs leading-relaxed">
-            Side-by-side and inline diffs, syntax highlighting, hunk staging, and range reversion.
-          </p>
-        </div>
-      );
+    if (tab.id.startsWith("diff-") && tab.id !== "diff-") {
+      const filePath = tab.id.substring("diff-".length);
+      const diffContext =
+        activeDiff && activeDiff.path === filePath ? activeDiff.context : "unstaged";
+      return <DiffView filePath={filePath} context={diffContext} />;
     }
 
     return (
