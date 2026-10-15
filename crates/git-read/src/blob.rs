@@ -19,20 +19,17 @@ impl ReadRepo {
     }
 
     pub fn blob_at_gix(&self, rev_spec: &str, path: &Path) -> Result<Option<Vec<u8>>, ReadError> {
-        let tree = match self.resolve_tree(rev_spec) {
-            Ok(t) => t,
-            Err(_) => return Ok(None),
-        };
+        let tree = self.resolve_tree(rev_spec)?;
 
         let entry = match tree.lookup_entry_by_path(path) {
             Ok(Some(entry)) => entry,
-            _ => return Ok(None),
+            Ok(None) => return Ok(None),
+            Err(e) => return Err(ReadError::Gix(format!("Failed to lookup entry: {e}"))),
         };
 
-        let obj = match entry.object() {
-            Ok(obj) => obj,
-            Err(_) => return Ok(None),
-        };
+        let obj = entry
+            .object()
+            .map_err(|e| ReadError::Gix(format!("Failed to read object: {e}")))?;
 
         if let Ok(blob) = obj.try_into_blob() {
             Ok(Some(blob.data.to_vec()))
