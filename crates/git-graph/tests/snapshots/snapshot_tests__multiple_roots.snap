@@ -1,0 +1,11 @@
+---
+source: crates/git-graph/tests/snapshot_tests.rs
+expression: ascii
+---
+*   r1_head
+|
+| *   r2_head
+| |
+* |   r1_root
+  |
+  *   r2_root
