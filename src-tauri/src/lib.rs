@@ -87,6 +87,28 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::graph::commit_detail,
             commands::graph::compare,
             commands::graph::graph_search,
+            // Hosting
+            commands::hosting::host_info,
+            commands::hosting::set_host_token,
+            commands::hosting::delete_host_token,
+            commands::hosting::test_host_token,
+            commands::hosting::current_pull_request,
+            commands::hosting::list_pull_requests,
+            commands::hosting::create_pull_request,
+            commands::hosting::ci_status,
+            commands::hosting::search_reviewers,
+            commands::hosting::check_branch_pushed,
+            commands::hosting::avatar,
+            // AI
+            commands::ai::set_ai_key,
+            commands::ai::delete_ai_key,
+            commands::ai::test_ai_provider,
+            commands::ai::ai_list_models,
+            commands::ai::ai_has_consent,
+            commands::ai::ai_set_consent,
+            commands::ai::ai_generate_commit,
+            commands::ai::ai_generate_pr,
+            commands::ai::ai_explain_commit,
         ])
         .events(collect_events![
             git_exec::GitOutputEvent,

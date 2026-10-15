@@ -1,7 +1,9 @@
+pub mod ai;
 pub mod app;
 pub mod branch;
 pub mod graph;
 pub mod history;
+pub mod hosting;
 pub mod mod_helpers;
 pub mod status;
 pub mod types;
