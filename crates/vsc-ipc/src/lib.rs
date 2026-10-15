@@ -460,30 +460,15 @@ fn read_request_line(
 
     #[cfg(windows)]
     {
-        use interprocess::TryClone;
-        use std::io::Read;
-
-        let (tx, rx) = std::sync::mpsc::channel();
-        let mut conn_reader = conn.try_clone()?;
-        std::thread::spawn(move || {
-            let mut chunk = [0u8; 1024];
-            loop {
-                match conn_reader.read(&mut chunk) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        if tx.send(Ok(chunk[..n].to_vec())).is_err() {
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        let _ = tx.send(Err(e));
-                        break;
-                    }
-                }
+        let raw_handle = match conn {
+            interprocess::local_socket::Stream::NamedPipe(s) => {
+                use std::os::windows::io::{AsHandle, AsRawHandle};
+                s.inner().as_handle().as_raw_handle() as windows_sys::Win32::Foundation::HANDLE
             }
-        });
-
+        };
         let mut buf = Vec::new();
+        let mut chunk = [0u8; 1024];
+
         loop {
             let now = std::time::Instant::now();
             if now >= deadline {
@@ -493,26 +478,9 @@ fn read_request_line(
                 )));
             }
             let remaining = deadline.saturating_duration_since(now);
-            match rx.recv_timeout(remaining) {
-                Ok(Ok(chunk)) => {
-                    buf.extend_from_slice(&chunk);
-                    if buf.len() > max_size {
-                        return Err(IpcError::CancelledOrFailed(
-                            "request payload exceeds maximum size".to_string(),
-                        ));
-                    }
-                    if buf.contains(&b'\n') {
-                        break;
-                    }
-                }
-                Ok(Err(e)) => return Err(IpcError::Io(e)),
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                    return Err(IpcError::Io(std::io::Error::new(
-                        std::io::ErrorKind::TimedOut,
-                        "request read timed out",
-                    )));
-                }
-                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+            let read_limit = ((max_size + 1).saturating_sub(buf.len())).min(chunk.len());
+            match read_chunk_overlapped(raw_handle, &mut chunk[..read_limit], remaining) {
+                Ok(0) => {
                     if buf.is_empty() {
                         return Err(IpcError::Io(std::io::Error::new(
                             std::io::ErrorKind::UnexpectedEof,
@@ -527,6 +495,18 @@ fn read_request_line(
                     }
                     break;
                 }
+                Ok(n) => {
+                    buf.extend_from_slice(&chunk[..n]);
+                    if buf.len() > max_size {
+                        return Err(IpcError::CancelledOrFailed(
+                            "request payload exceeds maximum size".to_string(),
+                        ));
+                    }
+                    if buf.contains(&b'\n') {
+                        break;
+                    }
+                }
+                Err(e) => return Err(IpcError::Io(e)),
             }
         }
 
@@ -552,6 +532,110 @@ fn read_request_line(
             ));
         }
         Ok(line)
+    }
+}
+
+#[cfg(windows)]
+fn read_chunk_overlapped(
+    handle: windows_sys::Win32::Foundation::HANDLE,
+    buf: &mut [u8],
+    timeout: std::time::Duration,
+) -> std::io::Result<usize> {
+    use std::io;
+    use windows_sys::Win32::Foundation::{
+        CloseHandle, GetLastError, ERROR_BROKEN_PIPE, ERROR_IO_PENDING, ERROR_MORE_DATA,
+        ERROR_NO_DATA, ERROR_PIPE_NOT_CONNECTED, WAIT_OBJECT_0, WAIT_TIMEOUT,
+    };
+    use windows_sys::Win32::Storage::FileSystem::ReadFile;
+    use windows_sys::Win32::System::Threading::{CreateEventW, WaitForSingleObject};
+    use windows_sys::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED};
+
+    let event = unsafe { CreateEventW(std::ptr::null(), 1, 0, std::ptr::null()) };
+    if event == 0 {
+        return Err(io::Error::last_os_error());
+    }
+
+    struct EventGuard(windows_sys::Win32::Foundation::HANDLE);
+    impl Drop for EventGuard {
+        fn drop(&mut self) {
+            unsafe {
+                CloseHandle(self.0);
+            }
+        }
+    }
+    let _event_guard = EventGuard(event);
+
+    let mut overlapped: OVERLAPPED = unsafe { std::mem::zeroed() };
+    overlapped.hEvent = event;
+
+    let len = u32::try_from(buf.len()).unwrap_or(u32::MAX);
+    let mut bytes_read: u32 = 0;
+
+    let ok = unsafe {
+        ReadFile(
+            handle,
+            buf.as_mut_ptr(),
+            len,
+            &mut bytes_read,
+            &mut overlapped,
+        )
+    };
+
+    if ok != 0 {
+        return Ok(bytes_read as usize);
+    }
+
+    let err = unsafe { GetLastError() };
+    match err {
+        ERROR_IO_PENDING => {
+            let timeout_ms = u32::try_from(timeout.as_millis()).unwrap_or(u32::MAX);
+            let wait_res = unsafe { WaitForSingleObject(event, timeout_ms) };
+            if wait_res == WAIT_OBJECT_0 {
+                let mut transferred: u32 = 0;
+                let res = unsafe { GetOverlappedResult(handle, &overlapped, &mut transferred, 0) };
+                if res != 0 {
+                    Ok(transferred as usize)
+                } else {
+                    let err = unsafe { GetLastError() };
+                    if err == ERROR_BROKEN_PIPE
+                        || err == ERROR_PIPE_NOT_CONNECTED
+                        || err == ERROR_NO_DATA
+                    {
+                        Ok(0)
+                    } else {
+                        Err(io::Error::from_raw_os_error(err as i32))
+                    }
+                }
+            } else if wait_res == WAIT_TIMEOUT {
+                unsafe {
+                    CancelIoEx(handle, &overlapped);
+                    let mut transferred: u32 = 0;
+                    let _ = GetOverlappedResult(handle, &overlapped, &mut transferred, 1);
+                }
+                Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "request read timed out",
+                ))
+            } else {
+                unsafe {
+                    CancelIoEx(handle, &overlapped);
+                    let mut transferred: u32 = 0;
+                    let _ = GetOverlappedResult(handle, &overlapped, &mut transferred, 1);
+                }
+                Err(io::Error::last_os_error())
+            }
+        }
+        ERROR_MORE_DATA => {
+            let mut transferred: u32 = 0;
+            let res = unsafe { GetOverlappedResult(handle, &overlapped, &mut transferred, 0) };
+            if res != 0 {
+                Ok(transferred as usize)
+            } else {
+                Err(io::Error::last_os_error())
+            }
+        }
+        ERROR_BROKEN_PIPE | ERROR_PIPE_NOT_CONNECTED | ERROR_NO_DATA => Ok(0),
+        other => Err(io::Error::from_raw_os_error(other as i32)),
     }
 }
 

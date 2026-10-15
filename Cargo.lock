@@ -5990,6 +5990,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "widestring",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
