@@ -82,22 +82,25 @@ impl LaneState {
             let mut edges = Vec::new();
 
             // 1b. Other lanes waiting for the same commit converge into this commit and close.
-            if waiting_lanes.len() > 1 {
-                for &other_col in &waiting_lanes[1..] {
-                    let other_color = self.active[other_col].as_ref().unwrap().color;
-                    edges.push(Edge::new(
-                        other_col as u16,
-                        col as u16,
-                        EdgeKind::MergeIn,
-                        other_color,
-                    ));
-                    self.active[other_col] = None;
-                }
+            let closing_lanes = if waiting_lanes.len() > 1 {
+                &waiting_lanes[1..]
+            } else {
+                &[]
+            };
+            for &other_col in closing_lanes {
+                let other_color = self.active[other_col].as_ref().unwrap().color;
+                edges.push(Edge::new(
+                    other_col as u16,
+                    col as u16,
+                    EdgeKind::MergeIn,
+                    other_color,
+                ));
+                self.active[other_col] = None;
             }
 
             // Passing lanes: active lanes that pass straight through this row.
             for (idx, lane_opt) in self.active.iter().enumerate() {
-                if idx != col && !waiting_lanes[1..].contains(&idx) {
+                if idx != col && !closing_lanes.contains(&idx) {
                     if let Some(lane) = lane_opt {
                         edges.push(Edge::new(
                             idx as u16,
@@ -248,5 +251,86 @@ mod tests {
             .edges
             .iter()
             .any(|e| e.kind == EdgeKind::MergeIn && e.from_col == 1 && e.to_col == 0));
+    }
+
+    #[test]
+    fn test_merge_first_page_parent_second_page() {
+        let commits = vec![
+            CommitNode::new("m", vec!["c1".into(), "c2".into()], vec![]),
+            CommitNode::new("c2", vec!["c1".into()], vec![]),
+            CommitNode::new("c1", vec![], vec![]),
+        ];
+
+        let baseline = layout(&commits);
+
+        let mut state = LaneState::new();
+        let mut paged = state.layout_page(&commits[..1]);
+        paged.extend(state.layout_page(&commits[1..]));
+
+        assert_eq!(paged, baseline);
+    }
+
+    #[test]
+    fn test_shallow_parent_no_panic() {
+        let commits = vec![
+            CommitNode::new("c1", vec!["shallow_parent_sha".into()], vec![]),
+            CommitNode::new("c0", vec![], vec![]),
+        ];
+
+        let mut state = LaneState::new();
+        let rows = state.layout_page(&commits);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].sha, "c1");
+        assert_eq!(rows[1].sha, "c0");
+        // c1's lane is still waiting for shallow_parent_sha, so it stays active
+        assert!(!state.is_empty());
+    }
+
+    #[test]
+    fn test_pagination_property_at_every_cut_position() {
+        // Construct a non-trivial DAG
+        let commits = vec![
+            CommitNode::new("c12", vec!["c10".into(), "c11".into()], vec![]),
+            CommitNode::new("c11", vec!["c8".into(), "c9".into()], vec![]),
+            CommitNode::new("c10", vec!["c7".into()], vec![]),
+            CommitNode::new("c9", vec!["c6".into()], vec![]),
+            CommitNode::new("c8", vec!["c5".into(), "c6".into()], vec![]),
+            CommitNode::new("c7", vec!["c4".into()], vec![]),
+            CommitNode::new("c6", vec!["c3".into()], vec![]),
+            CommitNode::new("c5", vec!["c3".into()], vec![]),
+            CommitNode::new("c4", vec!["c2".into()], vec![]),
+            CommitNode::new("c3", vec!["c1".into()], vec![]),
+            CommitNode::new("c2", vec!["c1".into()], vec![]),
+            CommitNode::new("c1", vec!["c0".into()], vec![]),
+            CommitNode::new("c0", vec![], vec![]),
+        ];
+
+        let baseline = layout(&commits);
+
+        // Test every 2-page cut
+        for cut in 0..=commits.len() {
+            let mut state = LaneState::new();
+            let mut result = state.layout_page(&commits[..cut]);
+            result.extend(state.layout_page(&commits[cut..]));
+            assert_eq!(
+                result, baseline,
+                "Failed 2-page split at cut position {}",
+                cut
+            );
+        }
+
+        // Test variable chunk sizes (multi-page streaming)
+        for chunk_size in 1..=commits.len() {
+            let mut state = LaneState::new();
+            let mut result = Vec::new();
+            for chunk in commits.chunks(chunk_size) {
+                result.extend(state.layout_page(chunk));
+            }
+            assert_eq!(
+                result, baseline,
+                "Failed multi-page split with chunk_size {}",
+                chunk_size
+            );
+        }
     }
 }
