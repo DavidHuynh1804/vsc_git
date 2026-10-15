@@ -119,7 +119,9 @@ pub fn new_session_addr() -> String {
         let session_dir = base_dir.join(format!("vsc-git-{}", rand_id));
         let mut builder = std::fs::DirBuilder::new();
         builder.mode(0o700);
-        let _ = builder.create(&session_dir);
+        builder
+            .create(&session_dir)
+            .expect("failed to create secure session directory with 0700 permissions");
         session_dir
             .join("vsc-git.sock")
             .to_string_lossy()
@@ -130,7 +132,7 @@ pub fn new_session_addr() -> String {
     {
         let base_dir = std::env::temp_dir();
         let session_dir = base_dir.join(format!("vsc-git-{}", rand_id));
-        let _ = std::fs::create_dir_all(&session_dir);
+        std::fs::create_dir_all(&session_dir).expect("failed to create session directory");
         session_dir
             .join("vsc-git.sock")
             .to_string_lossy()
@@ -207,7 +209,7 @@ pub const MAX_REQUEST_SIZE: usize = 4 * 1024 * 1024; // 4 MiB
 pub const DEFAULT_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 pub struct IpcListener {
-    listener: LocalSocketListener,
+    listener: Option<LocalSocketListener>,
     addr: String,
     shutdown: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
@@ -235,7 +237,10 @@ impl IpcListener {
                     "IPC listener shut down",
                 ));
             }
-            match self.listener.accept() {
+            let l = self.listener.as_ref().ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::Interrupted, "IPC listener shut down")
+            })?;
+            match l.accept() {
                 Ok(stream) => {
                     use interprocess::local_socket::traits::Stream;
                     stream.set_nonblocking(false)?;
@@ -262,7 +267,10 @@ impl IpcListener {
                     "IPC listener shut down",
                 ));
             }
-            match self.listener.accept() {
+            let l = self.listener.as_ref().ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::Interrupted, "IPC listener shut down")
+            })?;
+            match l.accept() {
                 Ok(stream) => {
                     use interprocess::local_socket::traits::Stream;
                     stream.set_nonblocking(false)?;
@@ -283,16 +291,21 @@ impl IpcListener {
 impl Drop for IpcListener {
     fn drop(&mut self) {
         self.shutdown();
+        drop(self.listener.take());
         #[cfg(unix)]
         {
             let path = std::path::Path::new(&self.addr);
             let _ = std::fs::remove_file(path);
             if let Some(parent) = path.parent() {
-                if parent
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .map(|n| n.starts_with("vsc-git-"))
-                    .unwrap_or(false)
+                let base_dir = std::env::var_os("XDG_RUNTIME_DIR")
+                    .map(std::path::PathBuf::from)
+                    .unwrap_or_else(std::env::temp_dir);
+                if parent.parent() == Some(&base_dir)
+                    && parent
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .map(|n| n.starts_with("vsc-git-"))
+                        .unwrap_or(false)
                 {
                     let _ = std::fs::remove_dir(parent);
                 }
@@ -303,7 +316,7 @@ impl Drop for IpcListener {
 
 /// Creates a new local socket listener at the given address with hardened permissions.
 ///
-/// - Unix: ensures parent directory is 0700, creates socket file with 0600 permissions,
+/// - Unix: ensures parent directory is 0700 if created, sets socket file permissions to 0600,
 ///   and automatically cleans up socket file on drop.
 /// - Windows: configures named pipe with access restricted to current user (owner) only
 ///   and rejects remote network clients.
@@ -317,21 +330,24 @@ pub fn create_listener(addr: &str) -> Result<IpcListener, IpcError> {
         use interprocess::os::windows::local_socket::ListenerOptionsExt;
         use interprocess::os::windows::security_descriptor::SecurityDescriptor;
         let sddl = widestring::u16cstr!("D:P(A;;GA;;;OW)");
-        if let Ok(sd) = SecurityDescriptor::deserialize(sddl) {
-            options = options.security_descriptor(sd);
-        }
+        let sd = SecurityDescriptor::deserialize(sddl).map_err(|e| {
+            IpcError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("failed to initialize security descriptor: {e}"),
+            ))
+        })?;
+        options = options.security_descriptor(sd);
     }
 
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
         let path = std::path::Path::new(addr);
         if let Some(parent) = path.parent() {
-            if parent.exists() {
-                let _ = std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700));
-            } else {
+            if !parent.exists() {
                 use std::os::unix::fs::DirBuilderExt;
-                let _ = std::fs::DirBuilder::new().mode(0o700).create(parent);
+                let mut builder = std::fs::DirBuilder::new();
+                builder.mode(0o700);
+                builder.create(parent)?;
             }
         }
     }
@@ -343,7 +359,7 @@ pub fn create_listener(addr: &str) -> Result<IpcListener, IpcError> {
         use std::os::unix::fs::PermissionsExt;
         let path = std::path::Path::new(addr);
         if path.exists() {
-            let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
         }
     }
 
@@ -352,7 +368,7 @@ pub fn create_listener(addr: &str) -> Result<IpcListener, IpcError> {
     listener.set_nonblocking(ListenerNonblockingMode::Accept)?;
 
     Ok(IpcListener {
-        listener,
+        listener: Some(listener),
         addr: addr.to_string(),
         shutdown: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
     })
@@ -363,38 +379,87 @@ fn read_request_line(
     timeout: std::time::Duration,
     max_size: usize,
 ) -> Result<String, IpcError> {
+    let start = std::time::Instant::now();
+    let deadline = start + timeout;
+
     #[cfg(unix)]
     {
         use interprocess::local_socket::traits::Stream;
         use std::io::Read;
+
         let _ = conn.set_nonblocking(false);
-        conn.set_recv_timeout(Some(timeout))?;
-        let mut reader = BufReader::new((&mut *conn).take(max_size as u64 + 1));
-        let mut line = String::new();
-        let n = reader.read_line(&mut line)?;
-        if n == 0 {
-            return Err(IpcError::Io(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
-                "connection closed before request was received",
-            )));
+        let mut buf = Vec::new();
+        let mut chunk = [0u8; 1024];
+
+        loop {
+            let now = std::time::Instant::now();
+            if now >= deadline {
+                return Err(IpcError::Io(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "request read timed out",
+                )));
+            }
+            let remaining = deadline.saturating_duration_since(now);
+            conn.set_recv_timeout(Some(remaining))?;
+
+            let read_limit = (max_size + 1).saturating_sub(buf.len()) as u64;
+            match (&mut *conn).take(read_limit).read(&mut chunk) {
+                Ok(0) => {
+                    if buf.is_empty() {
+                        return Err(IpcError::Io(std::io::Error::new(
+                            std::io::ErrorKind::UnexpectedEof,
+                            "connection closed before request was received",
+                        )));
+                    }
+                    break;
+                }
+                Ok(n) => {
+                    buf.extend_from_slice(&chunk[..n]);
+                    if buf.len() > max_size {
+                        return Err(IpcError::CancelledOrFailed(
+                            "request payload exceeds maximum size".to_string(),
+                        ));
+                    }
+                    if buf.contains(&b'\n') {
+                        break;
+                    }
+                }
+                Err(e)
+                    if e.kind() == std::io::ErrorKind::WouldBlock
+                        || e.kind() == std::io::ErrorKind::TimedOut =>
+                {
+                    return Err(IpcError::Io(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "request read timed out",
+                    )));
+                }
+                Err(e) => return Err(IpcError::Io(e)),
+            }
         }
-        if n > max_size || (!line.ends_with('\n') && n >= max_size) {
-            return Err(IpcError::CancelledOrFailed(
-                "request payload exceeds maximum size".to_string(),
-            ));
-        }
-        Ok(line)
+
+        String::from_utf8(buf)
+            .map_err(|e| IpcError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))
     }
 
     #[cfg(windows)]
     {
         use interprocess::local_socket::traits::Stream;
+        use std::io::Read;
+
         conn.set_nonblocking(true)?;
-        let start = std::time::Instant::now();
         let mut buf = Vec::new();
         let mut chunk = [0u8; 1024];
+
         let result = loop {
-            match std::io::Read::read(conn, &mut chunk) {
+            if std::time::Instant::now() >= deadline {
+                break Err(IpcError::Io(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "request read timed out",
+                )));
+            }
+
+            let read_limit = (max_size + 1).saturating_sub(buf.len()) as u64;
+            match (&mut *conn).take(read_limit).read(&mut chunk) {
                 Ok(0) => {
                     if buf.is_empty() {
                         break Err(IpcError::Io(std::io::Error::new(
@@ -416,17 +481,12 @@ fn read_request_line(
                     }
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    if start.elapsed() >= timeout {
-                        break Err(IpcError::Io(std::io::Error::new(
-                            std::io::ErrorKind::TimedOut,
-                            "request read timed out",
-                        )));
-                    }
                     std::thread::sleep(std::time::Duration::from_millis(5));
                 }
                 Err(e) => break Err(IpcError::Io(e)),
             }
         };
+
         let _ = conn.set_nonblocking(false);
         result?;
         String::from_utf8(buf)
@@ -724,6 +784,36 @@ mod tests {
 
         let name = to_socket_name(addr).unwrap();
         let _client = Stream::connect(name).unwrap();
+        server_thread.join().unwrap();
+    }
+    #[test]
+    fn test_ipc_slow_trickle_timeout() {
+        let dir = tempdir().unwrap();
+        let sock_path = dir.path().join("trickle.sock");
+        let addr = sock_path.to_str().unwrap();
+        let listener = create_listener(addr).unwrap();
+
+        let server_thread = std::thread::spawn(move || {
+            let conn = listener.accept().unwrap();
+            let res = handle_connection_with_timeout(
+                conn,
+                "test-tok",
+                std::time::Duration::from_millis(150),
+                1024,
+                |_| IpcResponse::ok("ok"),
+            );
+            assert!(res.is_err());
+        });
+
+        let name = to_socket_name(addr).unwrap();
+        let mut client = Stream::connect(name).unwrap();
+        // Slowly send 1 byte every 40ms without newline
+        for _ in 0..10 {
+            if client.write_all(b"a").is_err() || client.flush().is_err() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(40));
+        }
         server_thread.join().unwrap();
     }
 
