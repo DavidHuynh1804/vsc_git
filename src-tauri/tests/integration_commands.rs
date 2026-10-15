@@ -240,13 +240,20 @@ fn test_askpass_ipc_roundtrip_with_real_binary() {
     let ipc_token = server.token.clone();
 
     // Find the askpass binary
-    let candidates = [
-        PathBuf::from("target/debug/vsc-git-askpass"),
-        PathBuf::from("../target/debug/vsc-git-askpass"),
+    let exe = format!("vsc-git-askpass{}", std::env::consts::EXE_SUFFIX);
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut candidates = vec![
+        manifest_dir.join("../target/debug").join(&exe),
+        PathBuf::from("target/debug").join(&exe),
+        PathBuf::from("../target/debug").join(&exe),
     ];
+    if let Ok(target_dir) = std::env::var("CARGO_TARGET_DIR") {
+        candidates.insert(0, PathBuf::from(target_dir).join("debug").join(&exe));
+    }
     let bin_path = candidates
-        .iter()
+        .into_iter()
         .find(|p| p.exists())
+        .or_else(|| vsc_git_lib::repo::ipc::find_helper_binary("vsc-git-askpass"))
         .expect("vsc-git-askpass binary exists");
 
     // Spawn a thread to answer the prompt as soon as it arrives
