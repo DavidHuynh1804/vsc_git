@@ -18,11 +18,15 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             repo::session::git_version,
             git_exec::get_git_output,
             commands::pick_folder,
+            repo::jobs::cancel_job,
         ])
         .events(collect_events![
             git_exec::GitOutputEvent,
             repo::watcher::StatusChangedEvent,
             repo::watcher::RefsChangedEvent,
+            repo::jobs::JobProgressEvent,
+            repo::jobs::JobDoneEvent,
+            repo::jobs::JobChunkEvent,
         ])
 }
 
