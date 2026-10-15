@@ -31,8 +31,12 @@ impl TestRepo {
             CommandOptions::default(),
         )
         .expect("config autocrlf");
-        cli.exec(&path, &["config", "core.eol", "lf"], CommandOptions::default())
-            .expect("config eol");
+        cli.exec(
+            &path,
+            &["config", "core.eol", "lf"],
+            CommandOptions::default(),
+        )
+        .expect("config eol");
         cli.exec(
             &path,
             &["config", "user.email", "integration@test.com"],
