@@ -27,6 +27,14 @@ impl TestRepo {
             .expect("git init");
         cli.exec(
             &path,
+            &["config", "core.autocrlf", "false"],
+            CommandOptions::default(),
+        )
+        .expect("config autocrlf");
+        cli.exec(&path, &["config", "core.eol", "lf"], CommandOptions::default())
+            .expect("config eol");
+        cli.exec(
+            &path,
             &["config", "user.email", "integration@test.com"],
             CommandOptions::default(),
         )
