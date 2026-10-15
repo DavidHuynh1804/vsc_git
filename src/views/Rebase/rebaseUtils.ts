@@ -1,4 +1,4 @@
-import { RebaseTodoEntry } from "@/m3/types";
+import { RebaseAction, RebaseTodoEntry } from "@/m3/types";
 
 export interface RebaseValidationResult {
   isValid: boolean;
@@ -59,4 +59,44 @@ export function serializeRebaseTodo(entries: RebaseTodoEntry[]): string {
       .map((entry) => `${entry.action} ${entry.sha} ${entry.subject}`)
       .join("\n") + "\n"
   );
+}
+
+const ACTION_MAP: Record<string, RebaseAction> = {
+  p: "pick",
+  pick: "pick",
+  r: "reword",
+  reword: "reword",
+  e: "edit",
+  edit: "edit",
+  s: "squash",
+  squash: "squash",
+  f: "fixup",
+  fixup: "fixup",
+  d: "drop",
+  drop: "drop",
+  x: "exec",
+  exec: "exec",
+  b: "break",
+  break: "break",
+};
+
+export function parseRebaseTodo(text: string): RebaseTodoEntry[] {
+  const lines = text.split("\n");
+  const entries: RebaseTodoEntry[] = [];
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const parts = line.split(/\s+/);
+    if (parts.length >= 3) {
+      const action = ACTION_MAP[parts[0].toLowerCase()];
+      if (action) {
+        entries.push({
+          action,
+          sha: parts[1],
+          subject: parts.slice(2).join(" "),
+        });
+      }
+    }
+  }
+  return entries;
 }

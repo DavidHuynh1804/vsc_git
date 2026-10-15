@@ -25,21 +25,39 @@ export default function App() {
     commands.getCurrentRepo().then((res) => {
       if (res.status === "ok" && res.data) {
         setRepo(res.data);
+        const scm = useScmStore.getState();
+        void scm.refreshStatus();
+        void scm.refreshRefs();
+        void scm.refreshStashes();
       }
     });
+
+    let debounceTimer: number | null = null;
+    const triggerRefresh = () => {
+      clearTimeout(debounceTimer ?? undefined);
+      debounceTimer = window.setTimeout(() => {
+        const scm = useScmStore.getState();
+        void scm.refreshStatus();
+        void scm.refreshRefs();
+        void scm.refreshStashes();
+      }, 300);
+    };
 
     // Listen to repository status & refs changes from watcher
     const unlistenStatus = events.repoStatusChanged.listen((event) => {
       setToastMessage(`Status changed in ${event.payload.root}`);
       setTimeout(() => setToastMessage(null), 3000);
+      triggerRefresh();
     });
 
     const unlistenRefs = events.repoRefsChanged.listen((event) => {
       setToastMessage(`Refs changed in ${event.payload.root}`);
       setTimeout(() => setToastMessage(null), 3000);
+      triggerRefresh();
     });
 
     return () => {
+      clearTimeout(debounceTimer ?? undefined);
       unlistenStatus.then((u) => u());
       unlistenRefs.then((u) => u());
     };

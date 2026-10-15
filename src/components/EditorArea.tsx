@@ -28,6 +28,7 @@ export const EditorArea: React.FC = () => {
         id: "rebase-interactive",
         title: sha ? `Rebase (${sha.slice(0, 7)})` : "Interactive Rebase",
         closable: true,
+        baseSha: sha,
       });
     }
   };
@@ -62,7 +63,8 @@ export const EditorArea: React.FC = () => {
       return (
         <BlameView
           filePath={filePath}
-          onSelectCommitInGraph={() => {
+          onSelectCommitInGraph={(sha) => {
+            useUIStore.getState().setSelectedGraphSha(sha);
             openTab({ id: "graph", title: "Git Graph", closable: true });
           }}
         />
@@ -75,7 +77,7 @@ export const EditorArea: React.FC = () => {
     }
 
     if (tab.id === "rebase-interactive") {
-      return <InteractiveRebaseView />;
+      return <InteractiveRebaseView baseSha={tab.baseSha} />;
     }
     return (
       <div className="flex h-full w-full flex-col items-center justify-center p-8 text-center text-vscode-muted gap-2">

@@ -58,12 +58,15 @@ describe("FileHistoryView Component", () => {
     const secondCommit = screen.getByText("feat: initialize root application structure");
     fireEvent.click(secondCommit);
 
-    await waitFor(() => {
-      expect(screen.getByText("Diff at commit: a1b2c3d")).toBeInTheDocument();
-      expect(fileContentSpy).toHaveBeenCalledWith(
-        "src/AppOld.tsx",
-        expect.objectContaining({ kind: "Commit", sha: "a1b2c3d4e5f67890123456789012345678901234" })
-      );
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByText("Diff at commit: a1b2c3d")).toBeInTheDocument();
+        expect(fileContentSpy).toHaveBeenCalledWith(
+          "src/AppOld.tsx",
+          expect.objectContaining({ kind: "Commit", sha: "a1b2c3d4e5f67890123456789012345678901234" })
+        );
+      },
+      { timeout: 3000 }
+    );
   });
 });

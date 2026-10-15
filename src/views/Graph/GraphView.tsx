@@ -16,7 +16,8 @@ import type {
   GraphFilter,
   GraphRow,
 } from "@/graph/types";
-import { type GraphDataSource, MockGraphDataSource } from "@/graph/dataSource";
+import { type GraphDataSource, MockGraphDataSource, TauriGraphDataSource } from "@/graph/dataSource";
+import { isMock } from "@/env";
 import { ROW_HEIGHT } from "@/graph/geometry";
 import { GraphCanvas } from "@/components/graph/GraphCanvas";
 import { RefsBadge } from "@/components/graph/RefsBadge";
@@ -113,10 +114,10 @@ export const GraphView: React.FC<GraphViewProps> = ({
   onOpenDiff,
   onAction,
 }) => {
-  const { setActiveActivity, openTab } = useUIStore();
+  const { setActiveActivity, openTab, selectedGraphSha, setSelectedGraphSha } = useUIStore();
 
   const [activeDataSource] = useState<GraphDataSource>(
-    () => propDataSource ?? new MockGraphDataSource(200000)
+    () => propDataSource ?? (isMock() ? new MockGraphDataSource(200000) : new TauriGraphDataSource())
   );
 
   const [commits, setCommits] = useState<CommitSummary[]>([]);
@@ -346,6 +347,13 @@ export const GraphView: React.FC<GraphViewProps> = ({
       activeDataSource.detail(sha).then(setDetail);
     }
   };
+
+  useEffect(() => {
+    if (selectedGraphSha) {
+      jumpToSha(selectedGraphSha);
+      setSelectedGraphSha(null);
+    }
+  }, [selectedGraphSha, commits]);
 
   // Go to HEAD
   const handleGoToHead = () => {

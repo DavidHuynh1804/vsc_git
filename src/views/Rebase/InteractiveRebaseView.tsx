@@ -14,8 +14,10 @@ import {
 import { RebaseTodoEntry, RebaseAction } from "@/m3/types";
 import { useM3Store } from "@/m3/m3Store";
 import { useUIStore } from "@/stores/ui";
-import { validateRebaseTodo, moveEntry } from "./rebaseUtils";
+import { validateRebaseTodo, moveEntry, parseRebaseTodo } from "./rebaseUtils";
+import { commands, events } from "@/bindings";
 import { EditMessageDialog } from "./EditMessageDialog";
+import { isMock } from "@/env";
 
 export interface InteractiveRebaseViewProps {
   baseSha?: string;
@@ -51,7 +53,26 @@ export const InteractiveRebaseView: React.FC<InteractiveRebaseViewProps> = ({
   const [editingEntry, setEditingEntry] = useState<{ index: number; entry: RebaseTodoEntry } | null>(
     null
   );
+  const [promptId, setPromptId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isMock()) return;
+    let active = true;
+    const unlistenPromise = events.promptRequest.listen((event) => {
+      if (active && event.payload.kind === "sequence_editor") {
+        setPromptId(event.payload.id);
+        const parsed = parseRebaseTodo(event.payload.prompt);
+        if (parsed.length > 0) {
+          setEntries(parsed);
+        }
+      }
+    });
+    return () => {
+      active = false;
+      unlistenPromise.then((u) => u());
+    };
+  }, []);
 
   useEffect(() => {
     if (!initialEntries || initialEntries.length === 0) {
@@ -116,7 +137,7 @@ export const InteractiveRebaseView: React.FC<InteractiveRebaseViewProps> = ({
       if (onStart) {
         await onStart(entries);
       } else {
-        await m3DataSource.submitRebaseTodo(entries);
+        await m3DataSource.submitRebaseTodo(entries, promptId ?? undefined);
       }
       closeTab("rebase-interactive");
     } finally {
@@ -125,6 +146,9 @@ export const InteractiveRebaseView: React.FC<InteractiveRebaseViewProps> = ({
   };
 
   const handleCancel = () => {
+    if (promptId) {
+      void commands.answerPrompt(promptId, null);
+    }
     if (onCancel) {
       onCancel();
     } else {
