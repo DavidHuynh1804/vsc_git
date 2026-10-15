@@ -1,6 +1,11 @@
 use git_core::{
-    apply_ranges, discard, stage, stage_all, status, unstage, unstage_all, ApplyMode,
-    CommandOptions, FileStatus, GitCli, GitOutput, LineRange, StatusEntryKind,
+    apply_ranges, checkout, checkout_detached, commit, create_branch, create_tag, delete_branch,
+    delete_tag, discard, fetch, file_content, last_commit_message, list_refs, op_abort,
+    operation_state, pull, push, rename_branch, set_upstream, stage, stage_all, stash_apply,
+    stash_drop, stash_list, stash_pop, stash_push, stash_show, status, unified_diff, unstage,
+    unstage_all, ApplyMode, CommandOptions, CommitOptions, ErrorKind, FetchTarget, FileRev,
+    FileStatus, GitCli, GitOutput, LineSelection, OperationKind, OperationState, PullMode,
+    PushOptions, RefKind, StashPushOptions, StatusEntryKind,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -195,7 +200,7 @@ fn test_integration_single_line_stage_unstage_revert() {
         &repo.cli,
         repo.path(),
         "doc.txt",
-        &[LineRange::new(4, 4)],
+        &[LineSelection::modified(4, 4)],
         ApplyMode::Stage,
     )
     .unwrap();
@@ -215,7 +220,7 @@ fn test_integration_single_line_stage_unstage_revert() {
         &repo.cli,
         repo.path(),
         "doc.txt",
-        &[LineRange::new(4, 4)],
+        &[LineSelection::modified(4, 4)],
         ApplyMode::Unstage,
     )
     .unwrap();
@@ -228,7 +233,7 @@ fn test_integration_single_line_stage_unstage_revert() {
         &repo.cli,
         repo.path(),
         "doc.txt",
-        &[LineRange::new(2, 2)],
+        &[LineSelection::original(2, 2), LineSelection::modified(2, 2)],
         ApplyMode::Revert,
     )
     .unwrap();
@@ -236,4 +241,370 @@ fn test_integration_single_line_stage_unstage_revert() {
     // File in working tree should have line 2 reverted to original "line2", but still keep "line4_new"
     let current_content = repo.read_file("doc.txt");
     assert_eq!(current_content, "line1\nline2\nline3\nline4_new\n");
+}
+
+#[test]
+fn test_integration_crlf_apply_ranges() {
+    let repo = TestRepo::new();
+    repo.git(&["config", "core.autocrlf", "false"]);
+
+    // Initial file with CRLF line endings
+    let initial_content = "line1\r\nline2\r\nline3\r\n";
+    repo.write_file("crlf.txt", initial_content);
+
+    stage_all(&repo.cli, repo.path()).unwrap();
+    repo.git(&["commit", "-m", "add crlf.txt"]);
+
+    // Modify 2 lines: line 2 modified, and add line 4
+    let modified_content = "line1\r\nline2_mod\r\nline3\r\nline4_new\r\n";
+    repo.write_file("crlf.txt", modified_content);
+
+    // Stage ONLY line 4 (+line4_new)
+    apply_ranges(
+        &repo.cli,
+        repo.path(),
+        "crlf.txt",
+        &[LineSelection::modified(4, 4)],
+        ApplyMode::Stage,
+    )
+    .unwrap();
+
+    // Check git diff --cached
+    let cached_diff = repo.git(&["diff", "--cached"]).stdout_lossy();
+    assert!(cached_diff.contains("+line4_new"));
+    assert!(!cached_diff.contains("line2_mod"));
+
+    // Check file in index via `git show :crlf.txt` bytes
+    let index_bytes = repo.git(&["show", ":crlf.txt"]).stdout;
+    assert_eq!(index_bytes, b"line1\r\nline2\r\nline3\r\nline4_new\r\n");
+}
+
+#[test]
+fn test_integration_commit_amend_and_options() {
+    let repo = TestRepo::new();
+    repo.write_file("file.txt", "content 1\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+
+    // 1. Initial commit
+    commit(
+        &repo.cli,
+        repo.path(),
+        CommitOptions::new("feat: initial commit"),
+    )
+    .unwrap();
+    assert_eq!(
+        last_commit_message(&repo.cli, repo.path()).unwrap(),
+        "feat: initial commit"
+    );
+
+    // 2. Amend commit with signoff
+    repo.write_file("file.txt", "content 2\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+    commit(
+        &repo.cli,
+        repo.path(),
+        CommitOptions {
+            message: "feat: amended commit".into(),
+            amend: true,
+            signoff: true,
+            no_verify: false,
+            all: false,
+        },
+    )
+    .unwrap();
+
+    let msg = last_commit_message(&repo.cli, repo.path()).unwrap();
+    assert!(msg.starts_with("feat: amended commit"));
+    assert!(msg.contains("Signed-off-by: Integration Tester <integration@test.com>"));
+}
+
+#[test]
+fn test_integration_branch_and_tag_ops() {
+    let repo = TestRepo::new();
+    repo.write_file("file.txt", "base\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+    commit(&repo.cli, repo.path(), CommitOptions::new("base commit")).unwrap();
+
+    // Create branch and list
+    create_branch(&repo.cli, repo.path(), "feature", None).unwrap();
+    let refs = list_refs(&repo.cli, repo.path()).unwrap();
+    assert_eq!(refs.len(), 2);
+    // Set upstream and checkout feature
+    set_upstream(&repo.cli, repo.path(), Some("feature"), "main").unwrap();
+    checkout(&repo.cli, repo.path(), "feature").unwrap();
+    let cur_refs = list_refs(&repo.cli, repo.path()).unwrap();
+    let cur_branch = cur_refs.iter().find(|r| r.is_head).unwrap();
+    assert_eq!(cur_branch.name, "feature");
+
+    // Checkout detached
+    let commit_id = cur_branch.commit_id.clone();
+    checkout_detached(&repo.cli, repo.path(), &commit_id).unwrap();
+
+    // Rename and delete
+    checkout(&repo.cli, repo.path(), "main").unwrap();
+    rename_branch(&repo.cli, repo.path(), Some("feature"), "feat-new").unwrap();
+    delete_branch(&repo.cli, repo.path(), "feat-new", false).unwrap();
+
+    // Tag create & delete
+    create_tag(&repo.cli, repo.path(), "v1.0", None, None).unwrap();
+    create_tag(&repo.cli, repo.path(), "v2.0", None, Some("release 2.0")).unwrap();
+    let refs_with_tags = list_refs(&repo.cli, repo.path()).unwrap();
+    let tags: Vec<_> = refs_with_tags
+        .iter()
+        .filter(|r| r.kind == RefKind::Tag)
+        .collect();
+    assert_eq!(tags.len(), 2);
+
+    delete_tag(&repo.cli, repo.path(), "v1.0").unwrap();
+    let final_refs = list_refs(&repo.cli, repo.path()).unwrap();
+    let remaining_tags: Vec<_> = final_refs
+        .iter()
+        .filter(|r| r.kind == RefKind::Tag)
+        .collect();
+    assert_eq!(remaining_tags.len(), 1);
+    assert_eq!(remaining_tags[0].name, "v2.0");
+}
+
+#[test]
+fn test_integration_stash_push_pop_untracked() {
+    let repo = TestRepo::new();
+    repo.write_file("file.txt", "v1\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+    commit(&repo.cli, repo.path(), CommitOptions::new("initial commit")).unwrap();
+
+    // Modify tracked file and add untracked file
+    repo.write_file("file.txt", "v2\n");
+    repo.write_file("new_file.txt", "untracked content\n");
+
+    // Stash with untracked
+    stash_push(
+        &repo.cli,
+        repo.path(),
+        StashPushOptions::new()
+            .with_message("wip changes")
+            .with_untracked(true),
+    )
+    .unwrap();
+
+    // Working tree should be clean
+    let st = status(&repo.cli, repo.path()).unwrap();
+    assert_eq!(st.unstaged().len(), 0);
+    assert_eq!(st.untracked().len(), 0);
+    assert_eq!(repo.read_file("file.txt"), "v1\n");
+    assert!(!repo.path().join("new_file.txt").exists());
+
+    // Check stash list and show
+    let stashes = stash_list(&repo.cli, repo.path()).unwrap();
+    assert_eq!(stashes.len(), 1);
+    assert_eq!(stashes[0].message, "wip changes");
+    let patch = stash_show(&repo.cli, repo.path(), None).unwrap();
+    assert!(patch.contains("-v1"));
+    assert!(patch.contains("+v2"));
+
+    // Pop stash
+    stash_pop(&repo.cli, repo.path(), None).unwrap();
+    assert_eq!(repo.read_file("file.txt"), "v2\n");
+    assert_eq!(repo.read_file("new_file.txt"), "untracked content\n");
+
+    // List should be empty
+    let stashes_empty = stash_list(&repo.cli, repo.path()).unwrap();
+    assert!(stashes_empty.is_empty());
+
+    // Test apply and drop
+    stash_push(
+        &repo.cli,
+        repo.path(),
+        StashPushOptions::new().with_message("stash to drop"),
+    )
+    .unwrap();
+    stash_apply(&repo.cli, repo.path(), None).unwrap();
+    assert_eq!(stash_list(&repo.cli, repo.path()).unwrap().len(), 1);
+    stash_drop(&repo.cli, repo.path(), None).unwrap();
+    assert!(stash_list(&repo.cli, repo.path()).unwrap().is_empty());
+}
+
+#[test]
+fn test_integration_file_content_and_diff() {
+    let repo = TestRepo::new();
+    repo.write_file("doc.txt", "v1 content\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+    commit(&repo.cli, repo.path(), CommitOptions::new("initial commit")).unwrap();
+
+    // Modify and stage
+    repo.write_file("doc.txt", "v2 staged\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+
+    // Modify in worktree again
+    repo.write_file("doc.txt", "v3 worktree\n");
+
+    let head_bytes = file_content(&repo.cli, repo.path(), "doc.txt", FileRev::Head).unwrap();
+    assert_eq!(head_bytes, b"v1 content\n");
+
+    let index_bytes = file_content(&repo.cli, repo.path(), "doc.txt", FileRev::Index).unwrap();
+    assert_eq!(index_bytes, b"v2 staged\n");
+
+    let staged_diff = unified_diff(&repo.cli, repo.path(), Some("doc.txt"), true, 0).unwrap();
+    assert!(staged_diff.contains("-v1 content"));
+    assert!(staged_diff.contains("+v2 staged"));
+
+    let unstaged_diff = unified_diff(&repo.cli, repo.path(), Some("doc.txt"), false, 0).unwrap();
+    assert!(unstaged_diff.contains("-v2 staged"));
+    assert!(unstaged_diff.contains("+v3 worktree"));
+}
+
+#[test]
+fn test_integration_operation_state_merge_and_rebase_abort() {
+    let repo = TestRepo::new();
+    repo.write_file("file.txt", "base content\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+    commit(&repo.cli, repo.path(), CommitOptions::new("base commit")).unwrap();
+
+    // Feature branch
+    create_branch(&repo.cli, repo.path(), "feature", None).unwrap();
+    checkout(&repo.cli, repo.path(), "feature").unwrap();
+    repo.write_file("file.txt", "feature content\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+    commit(&repo.cli, repo.path(), CommitOptions::new("feat commit")).unwrap();
+
+    // Main branch conflicting commit
+    checkout(&repo.cli, repo.path(), "main").unwrap();
+    repo.write_file("file.txt", "main content\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+    commit(&repo.cli, repo.path(), CommitOptions::new("main commit")).unwrap();
+
+    // 1. Merge conflict
+    let _ = repo.cli.exec_raw(
+        repo.path(),
+        &["merge", "feature"],
+        CommandOptions::default(),
+    );
+    let merge_state = operation_state(&repo.cli, repo.path()).unwrap();
+    assert!(matches!(merge_state, OperationState::Merging { .. }));
+    assert_eq!(merge_state.kind(), Some(OperationKind::Merge));
+
+    // Abort merge
+    op_abort(&repo.cli, repo.path(), OperationKind::Merge).unwrap();
+    assert_eq!(
+        operation_state(&repo.cli, repo.path()).unwrap(),
+        OperationState::None
+    );
+
+    // 2. Rebase conflict
+    checkout(&repo.cli, repo.path(), "feature").unwrap();
+    let _ = repo
+        .cli
+        .exec_raw(repo.path(), &["rebase", "main"], CommandOptions::default());
+    let rebase_state = operation_state(&repo.cli, repo.path()).unwrap();
+    assert!(matches!(rebase_state, OperationState::Rebasing { .. }));
+    assert_eq!(rebase_state.kind(), Some(OperationKind::Rebase));
+    if let OperationState::Rebasing { step, total, .. } = rebase_state {
+        assert!(step >= 1);
+        assert!(total >= 1);
+    }
+
+    // Abort rebase
+    op_abort(&repo.cli, repo.path(), OperationKind::Rebase).unwrap();
+    assert_eq!(
+        operation_state(&repo.cli, repo.path()).unwrap(),
+        OperationState::None
+    );
+}
+
+#[test]
+fn test_integration_sync_fetch_pull_push_non_fast_forward() {
+    let bare_dir = tempdir().unwrap();
+    let bare_path = bare_dir.path();
+    let cli = GitCli::default();
+    cli.exec(bare_path, &["init", "--bare"], CommandOptions::default())
+        .unwrap();
+
+    let bare_url = bare_path.to_string_lossy().to_string();
+
+    // Repo 1
+    let repo1 = TestRepo::new();
+    repo1
+        .cli
+        .exec(
+            repo1.path(),
+            &["remote", "add", "origin", &bare_url],
+            CommandOptions::default(),
+        )
+        .unwrap();
+    repo1.write_file("file.txt", "v1\n");
+    stage_all(&repo1.cli, repo1.path()).unwrap();
+    commit(&repo1.cli, repo1.path(), CommitOptions::new("c1")).unwrap();
+
+    // Push from repo 1 with set_upstream
+    push(
+        &repo1.cli,
+        repo1.path(),
+        PushOptions::new()
+            .with_remote("origin")
+            .with_branch("main")
+            .with_upstream(true),
+        None,
+        None,
+    )
+    .unwrap();
+
+    // Repo 2
+    let repo2 = TestRepo::new();
+    repo2
+        .cli
+        .exec(
+            repo2.path(),
+            &["remote", "add", "origin", &bare_url],
+            CommandOptions::default(),
+        )
+        .unwrap();
+
+    // Fetch in repo 2 with progress callback
+    let progress_events = std::sync::Arc::new(parking_lot::Mutex::new(Vec::new()));
+    let p_clone = progress_events.clone();
+    fetch(
+        &repo2.cli,
+        repo2.path(),
+        FetchTarget::Remote("origin".into()),
+        true,
+        Some(std::sync::Arc::new(move |p| {
+            p_clone.lock().push(p);
+        })),
+        None,
+    )
+    .unwrap();
+
+    // Pull into repo 2
+    checkout(&repo2.cli, repo2.path(), "main").unwrap();
+    pull(&repo2.cli, repo2.path(), PullMode::Default, None, None).unwrap();
+    assert_eq!(repo2.read_file("file.txt"), "v1\n");
+
+    // Repo 1 makes another commit and pushes
+    repo1.write_file("file.txt", "v2 from repo1\n");
+    stage_all(&repo1.cli, repo1.path()).unwrap();
+    commit(&repo1.cli, repo1.path(), CommitOptions::new("c2")).unwrap();
+    push(
+        &repo1.cli,
+        repo1.path(),
+        PushOptions::new().with_remote("origin").with_branch("main"),
+        None,
+        None,
+    )
+    .unwrap();
+
+    // Repo 2 makes a conflicting commit without pulling
+    repo2.write_file("file.txt", "v2 conflicting from repo2\n");
+    stage_all(&repo2.cli, repo2.path()).unwrap();
+    commit(&repo2.cli, repo2.path(), CommitOptions::new("c2 conflict")).unwrap();
+
+    // Repo 2 tries to push -> fails with NonFastForward
+    let push_res = push(
+        &repo2.cli,
+        repo2.path(),
+        PushOptions::new().with_remote("origin").with_branch("main"),
+        None,
+        None,
+    );
+    assert!(push_res.is_err());
+    let err = push_res.unwrap_err();
+    assert_eq!(err.kind, ErrorKind::NonFastForward);
 }

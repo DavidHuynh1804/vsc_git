@@ -6,9 +6,9 @@ license.workspace = true
 
 [dependencies]
 thiserror = "2.0"
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive", "rc"] }
 tracing = "0.1"
-
+tempfile = "3"
 [dev-dependencies]
 parking_lot = "0.12"
 tempfile = "3"
