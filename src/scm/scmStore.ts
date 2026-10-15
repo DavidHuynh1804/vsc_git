@@ -64,7 +64,9 @@ export interface ScmState {
   createBranch: (name: string, startPoint?: string) => Promise<void>;
   renameBranch: (oldName: string, newName: string) => Promise<void>;
   deleteBranch: (name: string, force?: boolean) => Promise<void>;
+  setUpstream: (branch: string, upstream: string) => Promise<void>;
   stashPush: (opts: StashPushOptions) => Promise<void>;
+  stashApply: (index: number) => Promise<void>;
   stashPop: (index: number) => Promise<void>;
   stashDrop: (index: number) => Promise<void>;
   fetch: () => Promise<void>;
@@ -333,11 +335,34 @@ export const useScmStore = create<ScmState>((set, get) => {
       }
     },
 
+    setUpstream: async (branch, upstream) => {
+      try {
+        await get().dataSource.setUpstream(branch, upstream);
+        await get().refreshRefs();
+      } catch (err: unknown) {
+        if (err && typeof err === "object" && "kind" in err) {
+          set({ error: err as AppError });
+        }
+      }
+    },
+
     stashPush: async (opts) => {
       try {
         await get().dataSource.stashPush(opts);
         await get().refreshStashes();
         await get().refreshStatus();
+      } catch (err: unknown) {
+        if (err && typeof err === "object" && "kind" in err) {
+          set({ error: err as AppError });
+        }
+      }
+    },
+
+    stashApply: async (index) => {
+      try {
+        await get().dataSource.stashApply(index);
+        await get().refreshStatus();
+        await get().refreshStashes();
       } catch (err: unknown) {
         if (err && typeof err === "object" && "kind" in err) {
           set({ error: err as AppError });

@@ -1,13 +1,15 @@
 import React, { useRef, useState, useCallback, useEffect } from "react";
-import { GitBranch, Archive, Settings, RefreshCw, FolderOpen } from "lucide-react";
+import { Settings, RefreshCw, FolderOpen } from "lucide-react";
 import { useUIStore } from "@/stores/ui";
 import { useRepoStore } from "@/stores/repo";
 import { commands, Settings as AppSettings } from "@/bindings";
 import { SourceControlView } from "@/views/SourceControl/SourceControlView";
+import { BranchesView } from "@/views/Branches/BranchesView";
+import { StashesView } from "@/views/Stashes/StashesView";
 
 export const Sidebar: React.FC = () => {
   const { activeActivity, isSidebarOpen, sidebarWidth, setSidebarWidth } = useUIStore();
-  const { repoRoot, headBranch, setRepo, setLoading, setError } = useRepoStore();
+  const { repoRoot, setRepo, setLoading, setError } = useRepoStore();
 
   const [isDragging, setIsDragging] = useState(false);
   const [settingsData, setSettingsData] = useState<AppSettings | null>(null);
@@ -117,42 +119,10 @@ export const Sidebar: React.FC = () => {
         );
 
       case "branches":
-        return (
-          <div className="flex flex-col p-3 gap-3">
-            <div className="flex items-center justify-between border-b pb-2 text-vscode-muted">
-              <span className="font-semibold text-xs tracking-wider">BRANCHES</span>
-              <span className="text-[11px] bg-vscode-badge px-1.5 py-0.2 rounded text-white font-mono">
-                M1
-              </span>
-            </div>
-            <div className="rounded border bg-vscode-bg p-3 text-xs text-vscode-muted flex flex-col gap-1.5">
-              <div className="flex items-center gap-1.5 text-vscode-fg font-medium">
-                <GitBranch className="h-3.5 w-3.5 text-vscode-accent" />
-                <span>Current: {headBranch || "None"}</span>
-              </div>
-              <p className="text-[11px]">Branch switching and ref management arriving in M1.</p>
-            </div>
-          </div>
-        );
+        return <BranchesView />;
 
       case "stashes":
-        return (
-          <div className="flex flex-col p-3 gap-3">
-            <div className="flex items-center justify-between border-b pb-2 text-vscode-muted">
-              <span className="font-semibold text-xs tracking-wider">STASHES</span>
-              <span className="text-[11px] bg-vscode-badge px-1.5 py-0.2 rounded text-white font-mono">
-                M1
-              </span>
-            </div>
-            <div className="rounded border bg-vscode-bg p-3 text-xs text-vscode-muted flex flex-col gap-1">
-              <div className="flex items-center gap-1.5 text-vscode-fg font-medium">
-                <Archive className="h-3.5 w-3.5 text-vscode-accent" />
-                <span>Git Stashes</span>
-              </div>
-              <p className="text-[11px]">Stash list, apply, pop, and diff viewer arriving in M1.</p>
-            </div>
-          </div>
-        );
+        return <StashesView />;
 
       case "settings":
         return (
