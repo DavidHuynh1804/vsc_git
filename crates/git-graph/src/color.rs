@@ -51,5 +51,22 @@ mod tests {
         assert!(branch_color_index("main") < 12);
         assert_eq!(branch_color_index("main"), branch_color_index("main"));
         assert!(branch_color_index("feature/xyz") < 12);
+        assert_eq!(
+            branch_color_index("feature/xyz"),
+            branch_color_index("feature/xyz")
+        );
+    }
+
+    #[test]
+    fn test_primary_ref_priority() {
+        let refs = vec![
+            RefLabel::new("v1.0", RefKind::Tag),
+            RefLabel::new("origin/main", RefKind::RemoteBranch),
+            RefLabel::new("main", RefKind::LocalBranch),
+            RefLabel::new("HEAD", RefKind::Head),
+        ];
+        let primary = find_primary_ref(&refs).unwrap();
+        assert_eq!(primary.name, "main");
+        assert_eq!(primary.kind, RefKind::LocalBranch);
     }
 }

@@ -188,6 +188,7 @@ pub fn layout(commits: &[CommitNode]) -> Vec<GraphRow> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::{RefKind, RefLabel};
 
     #[test]
     fn test_linear_history() {
@@ -332,5 +333,24 @@ mod tests {
                 chunk_size
             );
         }
+    }
+
+    #[test]
+    fn test_color_inheritance_along_lane() {
+        let commits = vec![
+            CommitNode::new(
+                "c2",
+                vec!["c1".into()],
+                vec![RefLabel::new("feature/cool", RefKind::LocalBranch)],
+            ),
+            CommitNode::new("c1", vec!["c0".into()], vec![]),
+            CommitNode::new("c0", vec![], vec![]),
+        ];
+
+        let rows = layout(&commits);
+        let expected_color = branch_color_index("feature/cool");
+        assert_eq!(rows[0].color, expected_color);
+        assert_eq!(rows[1].color, expected_color);
+        assert_eq!(rows[2].color, expected_color);
     }
 }
