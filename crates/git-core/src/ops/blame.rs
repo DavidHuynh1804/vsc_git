@@ -66,6 +66,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path();
         run_git(path, &["init"]);
+        run_git(path, &["config", "core.autocrlf", "false"]);
         run_git(path, &["config", "user.name", "Author One"]);
         run_git(path, &["config", "user.email", "author1@example.com"]);
 
@@ -101,6 +102,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path();
         run_git(path, &["init"]);
+        run_git(path, &["config", "core.autocrlf", "false"]);
         run_git(path, &["config", "user.name", "Tester"]);
         run_git(path, &["config", "user.email", "tester@example.com"]);
 
