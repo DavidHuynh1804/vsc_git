@@ -124,6 +124,11 @@ impl CommandOptions {
         self.cancel_token = Some(token);
         self
     }
+
+    pub fn with_env(mut self, key: impl Into<String>, val: impl Into<String>) -> Self {
+        self.extra_env.insert(key.into(), val.into());
+        self
+    }
 }
 
 /// Raw output from running a git command.

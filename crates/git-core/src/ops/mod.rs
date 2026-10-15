@@ -3,6 +3,7 @@ pub mod commit;
 pub mod content;
 pub mod stage;
 pub mod stash;
+pub mod state;
 pub mod status;
 
 pub use branch::{
@@ -16,4 +17,5 @@ pub use stash::{
     stash_apply, stash_drop, stash_list, stash_pop, stash_push, stash_show, StashEntry,
     StashPushOptions,
 };
+pub use state::{op_abort, op_continue, op_skip, operation_state, OperationKind, OperationState};
 pub use status::status;

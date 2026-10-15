@@ -1,9 +1,10 @@
 use git_core::{
     apply_ranges, checkout, checkout_detached, commit, create_branch, create_tag, delete_branch,
-    delete_tag, discard, file_content, last_commit_message, list_refs, rename_branch, set_upstream,
-    stage, stage_all, stash_apply, stash_drop, stash_list, stash_pop, stash_push, stash_show,
-    status, unified_diff, unstage, unstage_all, ApplyMode, CommandOptions, CommitOptions, FileRev,
-    FileStatus, GitCli, GitOutput, LineSelection, RefKind, StashPushOptions, StatusEntryKind,
+    delete_tag, discard, file_content, last_commit_message, list_refs, op_abort, operation_state,
+    rename_branch, set_upstream, stage, stage_all, stash_apply, stash_drop, stash_list, stash_pop,
+    stash_push, stash_show, status, unified_diff, unstage, unstage_all, ApplyMode, CommandOptions,
+    CommitOptions, FileRev, FileStatus, GitCli, GitOutput, LineSelection, OperationKind,
+    OperationState, RefKind, StashPushOptions, StatusEntryKind,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -448,4 +449,62 @@ fn test_integration_file_content_and_diff() {
     let unstaged_diff = unified_diff(&repo.cli, repo.path(), Some("doc.txt"), false, 0).unwrap();
     assert!(unstaged_diff.contains("-v2 staged"));
     assert!(unstaged_diff.contains("+v3 worktree"));
+}
+
+#[test]
+fn test_integration_operation_state_merge_and_rebase_abort() {
+    let repo = TestRepo::new();
+    repo.write_file("file.txt", "base content\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+    commit(&repo.cli, repo.path(), CommitOptions::new("base commit")).unwrap();
+
+    // Feature branch
+    create_branch(&repo.cli, repo.path(), "feature", None).unwrap();
+    checkout(&repo.cli, repo.path(), "feature").unwrap();
+    repo.write_file("file.txt", "feature content\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+    commit(&repo.cli, repo.path(), CommitOptions::new("feat commit")).unwrap();
+
+    // Main branch conflicting commit
+    checkout(&repo.cli, repo.path(), "main").unwrap();
+    repo.write_file("file.txt", "main content\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+    commit(&repo.cli, repo.path(), CommitOptions::new("main commit")).unwrap();
+
+    // 1. Merge conflict
+    let _ = repo.cli.exec_raw(
+        repo.path(),
+        &["merge", "feature"],
+        CommandOptions::default(),
+    );
+    let merge_state = operation_state(&repo.cli, repo.path()).unwrap();
+    assert!(matches!(merge_state, OperationState::Merging { .. }));
+    assert_eq!(merge_state.kind(), Some(OperationKind::Merge));
+
+    // Abort merge
+    op_abort(&repo.cli, repo.path(), OperationKind::Merge).unwrap();
+    assert_eq!(
+        operation_state(&repo.cli, repo.path()).unwrap(),
+        OperationState::None
+    );
+
+    // 2. Rebase conflict
+    checkout(&repo.cli, repo.path(), "feature").unwrap();
+    let _ = repo
+        .cli
+        .exec_raw(repo.path(), &["rebase", "main"], CommandOptions::default());
+    let rebase_state = operation_state(&repo.cli, repo.path()).unwrap();
+    assert!(matches!(rebase_state, OperationState::Rebasing { .. }));
+    assert_eq!(rebase_state.kind(), Some(OperationKind::Rebase));
+    if let OperationState::Rebasing { step, total, .. } = rebase_state {
+        assert!(step >= 1);
+        assert!(total >= 1);
+    }
+
+    // Abort rebase
+    op_abort(&repo.cli, repo.path(), OperationKind::Rebase).unwrap();
+    assert_eq!(
+        operation_state(&repo.cli, repo.path()).unwrap(),
+        OperationState::None
+    );
 }
