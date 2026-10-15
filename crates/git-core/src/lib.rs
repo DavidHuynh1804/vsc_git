@@ -9,17 +9,20 @@ pub use cli::{
 };
 pub use error::{ErrorKind, GitError};
 pub use ops::{
-    checkout, checkout_detached, commit, create_branch, create_tag, delete_branch, delete_tag,
-    discard, discard_all, fetch, file_content, last_commit_message, list_refs, op_abort,
-    op_continue, op_skip, operation_state, parse_progress_line, parse_progress_stream, pull, push,
-    rename_branch, repo_has_commits, set_upstream, stage, stage_all, stash_apply, stash_drop,
+    blame, checkout, checkout_detached, commit, conflict_kind, conflict_versions, count_markers,
+    create_branch, create_tag, delete_branch, delete_tag, discard, discard_all, fetch,
+    file_content, file_history, last_commit_message, list_refs, mark_resolved, op_abort,
+    op_continue, op_skip, operation_state, parse_file_history, parse_progress_line,
+    parse_progress_stream, parse_rebase_todo, pull, push, rename_branch, repo_has_commits,
+    resolve_with, serialize_rebase_todo, set_upstream, stage, stage_all, stash_apply, stash_drop,
     stash_list, stash_pop, stash_push, stash_show, status, unified_diff, unstage, unstage_all,
-    CommitOptions, FetchTarget, FileRev, OperationKind, OperationState, Progress, ProgressCallback,
-    PullMode, PushOptions, RefInfo, RefKind, StashEntry, StashPushOptions,
+    BlameOptions, CommitOptions, ConflictKind, ConflictVersions, FetchTarget, FileHistoryEntry,
+    FileRev, OperationKind, OperationState, Progress, ProgressCallback, PullMode, PushOptions,
+    RebaseAction, RebaseTodoEntry, RefInfo, RefKind, Resolution, StashEntry, StashPushOptions,
 };
 pub use parse::{
-    parse_status_v2, BranchInfo, FileStatus, RepoStatus, StatusEntry, StatusEntryKind,
-    SubmoduleState,
+    parse_blame, parse_status_v2, BlameCommit, BlameLine, BranchInfo, FileStatus, RepoStatus,
+    StatusEntry, StatusEntryKind, SubmoduleState,
 };
 pub use patch::{
     apply_ranges, build_range_patch, hunk_selections, ApplyMode, LineRange, LineSelection, Side,
