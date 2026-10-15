@@ -55,28 +55,24 @@ export class MockAiDataSource implements AiDataSource {
 }
 
 export class TauriAiDataSource implements AiDataSource {
-  private fallback = new MockAiDataSource();
-
-  async listModels(provider: string, baseUrl?: string | null): Promise<string[]> {
-    // Backend hook: commands.aiListModels or fallback
-    return this.fallback.listModels(provider, baseUrl);
+  async listModels(provider: string, _baseUrl?: string | null): Promise<string[]> {
+    throw new Error(`Listing models for ${provider} is pending M4 backend AI commands.`);
   }
 
-  async setAiKey(provider: string, key: string): Promise<void> {
-    // Backend hook: commands.setAiKey or fallback
-    return this.fallback.setAiKey(provider, key);
+  async setAiKey(provider: string, _key: string): Promise<void> {
+    throw new Error(`Saving AI key for ${provider} is pending M4 backend keyring commands.`);
   }
 
-  async testProvider(provider: string, model?: string, baseUrl?: string | null): Promise<string> {
-    return this.fallback.testProvider(provider, model, baseUrl);
+  async testProvider(provider: string, _model?: string, _baseUrl?: string | null): Promise<string> {
+    throw new Error(`Testing AI provider ${provider} is pending M4 backend commands.`);
   }
 
   async generatePr(
-    base: string,
-    head: string,
-    onChunk: (chunk: string) => void
+    _base: string,
+    _head: string,
+    _onChunk: (chunk: string) => void
   ): Promise<{ title: string; body: string }> {
-    return this.fallback.generatePr(base, head, onChunk);
+    throw new Error("AI PR generation is pending M4 backend AI commands.");
   }
 }
 

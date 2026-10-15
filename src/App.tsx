@@ -13,7 +13,7 @@ import { useUIStore } from "@/stores/ui";
 import { CreatePrDialog } from "@/views/PullRequest/CreatePrDialog";
 
 export default function App() {
-  const { error, setError, setRepo, headBranch } = useRepoStore();
+  const { error, setError, setRepo, headBranch, repoRoot } = useRepoStore();
   const { isCreatePrOpen, setCreatePrOpen } = useUIStore();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -62,6 +62,7 @@ export default function App() {
         isOpen={isCreatePrOpen}
         onClose={() => setCreatePrOpen(false)}
         currentBranch={headBranch || "main"}
+        repoPath={repoRoot || ""}
       />
       {/* Error notification banner */}
       {error && (

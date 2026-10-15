@@ -34,13 +34,18 @@ export const AiSection: React.FC<AiSectionProps> = ({
   // Load models when provider or baseUrl changes
   useEffect(() => {
     let active = true;
-    aiDataSource.listModels(settings["ai.provider"], settings["ai.baseUrl"]).then((models) => {
-      if (active && models.length > 0) {
-        startTransition(() => {
-          setAvailableModels(models);
-        });
-      }
-    });
+    aiDataSource
+      .listModels(settings["ai.provider"], settings["ai.baseUrl"])
+      .then((models) => {
+        if (active && models.length > 0) {
+          startTransition(() => {
+            setAvailableModels(models);
+          });
+        }
+      })
+      .catch(() => {
+        // Fallback models already initialized
+      });
     return () => {
       active = false;
     };

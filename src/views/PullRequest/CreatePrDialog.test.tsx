@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { CreatePrDialog } from "./CreatePrDialog";
 import { MockHostingDataSource } from "@/integrations/hosting";
-import { MockAiDataSource } from "@/integrations/ai";
+import { MockAiDataSource, LocalStorageAiConsentDataSource } from "@/integrations/ai";
 
 describe("CreatePrDialog", () => {
   it("renders when open and shows base and head branches", async () => {
@@ -48,9 +48,10 @@ describe("CreatePrDialog", () => {
     expect(await hostDs.checkBranchPushed("feat/unpushed")).toBe(true);
   });
 
-  it("streams PR body and sets title when ✨ AI button is clicked", async () => {
+  it("gates AI generation on repo consent, then streams PR body and sets title", async () => {
     const hostDs = new MockHostingDataSource();
     const aiDs = new MockAiDataSource();
+    const consentDs = new LocalStorageAiConsentDataSource();
     render(
       <CreatePrDialog
         isOpen={true}
@@ -59,14 +60,26 @@ describe("CreatePrDialog", () => {
         defaultBaseBranch="main"
         hostingDataSource={hostDs}
         aiDataSource={aiDs}
+        aiConsentDataSource={consentDs}
+        repoPath="/projects/test-repo"
       />
     );
 
     const aiBtn = screen.getByRole("button", { name: /Generate with AI/i });
     fireEvent.click(aiBtn);
 
-    const textarea = screen.getByPlaceholderText(/Write PR description/i);
+    // Consent dialog must appear
+    expect(await screen.findByRole("dialog", { name: /AI Consent/i })).toBeInTheDocument();
+    expect(screen.getByText(/Claude/i)).toBeInTheDocument();
 
+    // Confirm consent
+    const continueBtn = screen.getByRole("button", { name: /Tiếp tục/i });
+    fireEvent.click(continueBtn);
+
+    // Consent must now be remembered for this repo
+    expect(consentDs.hasConsent("/projects/test-repo", "claude")).toBe(true);
+
+    const textarea = screen.getByPlaceholderText(/Write PR description/i);
     await waitFor(() => {
       expect(textarea).not.toHaveValue("");
     });
@@ -74,7 +87,6 @@ describe("CreatePrDialog", () => {
     expect(textarea.innerHTML || (textarea as HTMLTextAreaElement).value).toContain(
       "Summary of Changes"
     );
-    // Title should also be auto-populated
     const titleInput = screen.getByPlaceholderText(/feat\(auth\)/i);
     expect(titleInput).toHaveValue("feat: integrate changes from feat/my-feature into main");
   });

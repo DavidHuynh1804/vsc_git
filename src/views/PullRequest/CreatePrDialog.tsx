@@ -3,13 +3,15 @@ import { HostConfig } from "@/bindings";
 import {
   HostingDataSource,
   AiDataSource,
+  AiConsentDataSource,
   Reviewer,
   PullRequestResult,
   CiState,
 } from "@/integrations/types";
 import { defaultHostingDataSource } from "@/integrations/hosting";
-import { defaultAiDataSource } from "@/integrations/ai";
+import { defaultAiDataSource, defaultAiConsentDataSource } from "@/integrations/ai";
 import { CiBadge } from "@/components/CiBadge";
+import { AiConsentDialog } from "@/views/Settings/AiConsentDialog";
 import {
   GitPullRequest,
   Sparkles,
@@ -31,6 +33,9 @@ export interface CreatePrDialogProps {
   hostingDataSource?: HostingDataSource;
   aiDataSource?: AiDataSource;
   host?: HostConfig;
+  aiConsentDataSource?: AiConsentDataSource;
+  repoPath?: string;
+  provider?: string;
 }
 
 export const CreatePrDialog: React.FC<CreatePrDialogProps> = ({
@@ -45,6 +50,9 @@ export const CreatePrDialog: React.FC<CreatePrDialogProps> = ({
     kind: "github",
     apiBaseUrl: "https://api.github.com",
   },
+  aiConsentDataSource = defaultAiConsentDataSource,
+  repoPath = "",
+  provider = "claude",
 }) => {
   const [base, setBase] = useState(defaultBaseBranch);
   const [head, setHead] = useState(currentBranch);
@@ -65,9 +73,9 @@ export const CreatePrDialog: React.FC<CreatePrDialogProps> = ({
   const [isPushed, setIsPushed] = useState<boolean | null>(null);
   const [isPushing, setIsPushing] = useState(false);
 
-  // AI Generation state
+  // AI Generation & Consent state
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
-
+  const [showConsentDialog, setShowConsentDialog] = useState(false);
   // Submit / Result state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdPr, setCreatedPr] = useState<PullRequestResult | null>(null);
@@ -145,7 +153,7 @@ export const CreatePrDialog: React.FC<CreatePrDialogProps> = ({
     }
   };
 
-  const handleAiGenerate = async () => {
+  const executeAiGenerate = async () => {
     setIsGeneratingAi(true);
     setBody("");
     try {
@@ -160,6 +168,15 @@ export const CreatePrDialog: React.FC<CreatePrDialogProps> = ({
     } finally {
       setIsGeneratingAi(false);
     }
+  };
+
+  const handleAiGenerate = () => {
+    const isRemote = provider.toLowerCase() !== "ollama";
+    if (isRemote && !aiConsentDataSource.hasConsent(repoPath, provider)) {
+      setShowConsentDialog(true);
+      return;
+    }
+    executeAiGenerate();
   };
 
   const handleAddReviewer = (rev: Reviewer) => {
@@ -550,6 +567,22 @@ export const CreatePrDialog: React.FC<CreatePrDialogProps> = ({
           </form>
         )}
       </div>
+      {showConsentDialog && (
+        <AiConsentDialog
+          isOpen={showConsentDialog}
+          repoPath={repoPath}
+          provider={provider}
+          host={host.host}
+          consentDataSource={aiConsentDataSource}
+          onConfirm={() => {
+            setShowConsentDialog(false);
+            executeAiGenerate();
+          }}
+          onCancel={() => {
+            setShowConsentDialog(false);
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -91,38 +91,32 @@ export class MockHostingDataSource implements HostingDataSource {
     this.pushedBranches.add(branch);
   }
 }
-
 export class TauriHostingDataSource implements HostingDataSource {
-  private fallback = new MockHostingDataSource();
-
   async testConnection(
     host: HostConfig,
-    token?: string
+    _token?: string
   ): Promise<{ user: CurrentUser; scopeCheck: ScopeCheckResult }> {
-    // Backend hook: commands.testHostToken or fallback
-    return this.fallback.testConnection(host, token);
+    throw new Error(`Hosting integration for ${host.host} is pending M4 backend commands.`);
   }
 
-  async setHostToken(host: string, token: string): Promise<void> {
-    // Backend hook: commands.setHostToken or fallback
-    return this.fallback.setHostToken(host, token);
+  async setHostToken(host: string, _token: string): Promise<void> {
+    throw new Error(`Token storage for ${host} is pending M4 backend keyring commands.`);
   }
 
-  async createPullRequest(req: CreatePrRequest): Promise<PullRequestResult> {
-    // Backend hook: commands.createPullRequest or fallback
-    return this.fallback.createPullRequest(req);
+  async createPullRequest(_req: CreatePrRequest): Promise<PullRequestResult> {
+    throw new Error("Pull request creation is pending M4 backend commands.");
   }
 
-  async searchReviewers(host: string, query: string): Promise<Reviewer[]> {
-    return this.fallback.searchReviewers(host, query);
+  async searchReviewers(_host: string, _query: string): Promise<Reviewer[]> {
+    return [];
   }
 
-  async checkBranchPushed(headBranch: string): Promise<boolean> {
-    return this.fallback.checkBranchPushed(headBranch);
+  async checkBranchPushed(_headBranch: string): Promise<boolean> {
+    return false;
   }
 
   async pushBranch(branch: string): Promise<void> {
-    return this.fallback.pushBranch(branch);
+    throw new Error(`Push command for ${branch} is pending M1 sync backend commands.`);
   }
 }
 
