@@ -2,6 +2,7 @@ pub mod blame;
 pub mod branch;
 pub mod commit;
 pub mod content;
+pub mod history;
 pub mod stage;
 pub mod stash;
 pub mod state;
@@ -15,6 +16,7 @@ pub use branch::{
 };
 pub use commit::{commit, last_commit_message, CommitOptions};
 pub use content::{file_content, unified_diff, FileRev};
+pub use history::{file_history, parse_file_history, FileHistoryEntry};
 pub use stage::{discard, discard_all, repo_has_commits, stage, stage_all, unstage, unstage_all};
 pub use stash::{
     stash_apply, stash_drop, stash_list, stash_pop, stash_push, stash_show, StashEntry,
