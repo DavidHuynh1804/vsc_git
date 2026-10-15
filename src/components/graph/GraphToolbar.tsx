@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { DateDisplayFormat, GraphFilter } from "@/graph/types";
+import type { ColumnDefinition, DateDisplayFormat, GraphFilter } from "@/graph/types";
 import {
   Search,
   ChevronDown,
@@ -8,6 +8,7 @@ import {
   GitBranch,
   Clock,
   Compass,
+  Columns2,
 } from "lucide-react";
 
 interface GraphToolbarProps {
@@ -25,6 +26,8 @@ interface GraphToolbarProps {
   onGoToHead: () => void;
   onRefresh: () => void;
   isRefreshing?: boolean;
+  columns: ColumnDefinition[];
+  onToggleColumn: (id: string) => void;
 }
 
 export const GraphToolbar: React.FC<GraphToolbarProps> = ({
@@ -42,10 +45,14 @@ export const GraphToolbar: React.FC<GraphToolbarProps> = ({
   onGoToHead,
   onRefresh,
   isRefreshing = false,
+  columns,
+  onToggleColumn,
 }) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [isBranchMenuOpen, setIsBranchMenuOpen] = useState(false);
   const branchMenuRef = useRef<HTMLDivElement>(null);
+  const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false);
+  const columnsMenuRef = useRef<HTMLDivElement>(null);
 
   // Global '/' shortcut to focus search
   useEffect(() => {
@@ -76,12 +83,15 @@ export const GraphToolbar: React.FC<GraphToolbarProps> = ({
       if (branchMenuRef.current && !branchMenuRef.current.contains(e.target as Node)) {
         setIsBranchMenuOpen(false);
       }
+      if (columnsMenuRef.current && !columnsMenuRef.current.contains(e.target as Node)) {
+        setIsColumnsMenuOpen(false);
+      }
     };
-    if (isBranchMenuOpen) {
+    if (isBranchMenuOpen || isColumnsMenuOpen) {
       window.addEventListener("mousedown", handleClickOutside);
     }
     return () => window.removeEventListener("mousedown", handleClickOutside);
-  }, [isBranchMenuOpen]);
+  }, [isBranchMenuOpen, isColumnsMenuOpen]);
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -303,6 +313,43 @@ export const GraphToolbar: React.FC<GraphToolbarProps> = ({
           <Clock className="h-3.5 w-3.5 text-vscode-muted" />
           <span className="capitalize">{dateFormat}</span>
         </button>
+
+        {/* Column visibility dropdown */}
+        <div className="relative" ref={columnsMenuRef}>
+          <button
+            type="button"
+            onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
+            title="Toggle columns"
+            className="flex h-7 w-7 items-center justify-center rounded border border-vscode-border bg-vscode-input text-vscode-muted hover:text-vscode-fg hover:bg-vscode-hover"
+          >
+            <Columns2 className="h-3.5 w-3.5" />
+          </button>
+
+          {isColumnsMenuOpen && (
+            <div className="absolute right-0 top-8 z-50 flex w-44 flex-col rounded border border-vscode-border bg-vscode-sidebar p-2 shadow-xl">
+              <span className="mb-1 text-[10px] font-semibold uppercase text-vscode-muted">
+                Show Columns
+              </span>
+              <div className="flex flex-col gap-1">
+                {columns.map((col) => (
+                  <label
+                    key={col.id}
+                    className="flex items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-vscode-hover cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={col.visible}
+                      disabled={col.id === "graph"}
+                      onChange={() => onToggleColumn(col.id)}
+                      className="rounded accent-vscode-accent"
+                    />
+                    <span className="truncate text-vscode-fg">{col.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Refresh button */}
         <button

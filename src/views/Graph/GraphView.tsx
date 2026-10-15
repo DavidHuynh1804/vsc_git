@@ -174,8 +174,28 @@ export const GraphView: React.FC<GraphViewProps> = ({
     });
   }, [activeDataSource]);
 
+  // Anchor SHA to preserve scroll position on reset/filter-change
+  const pendingRestoreShaRef = useRef<string | null>(null);
+  const scrollTopRef = useRef(0);
+  const commitsRef = useRef<CommitSummary[]>([]);
+  const isDirtyRef = useRef(false);
+  useEffect(() => {
+    commitsRef.current = commits;
+  }, [commits]);
+  useEffect(() => {
+    isDirtyRef.current = isDirty;
+  }, [isDirty]);
+
   // Load initial page of commits
   const loadInitialPage = useCallback(async () => {
+    // Capture the topmost visible commit SHA so we can restore scroll after reset
+    const allCommits = commitsRef.current;
+    const topRowIndex = Math.floor(scrollTopRef.current / ROW_HEIGHT);
+    const anchor =
+      allCommits[isDirtyRef.current ? topRowIndex - 1 : topRowIndex] ??
+      allCommits[0];
+    pendingRestoreShaRef.current = anchor?.sha ?? null;
+
     setLoading(true);
     try {
       await activeDataSource.reset(filter);
@@ -191,6 +211,18 @@ export const GraphView: React.FC<GraphViewProps> = ({
   useEffect(() => {
     loadInitialPage();
   }, [loadInitialPage]);
+
+  // After the refreshed page lands, restore scroll to the anchor SHA if still present
+  useEffect(() => {
+    const anchorSha = pendingRestoreShaRef.current;
+    if (!anchorSha) return;
+
+    const idx = rows.findIndex((r) => r.sha === anchorSha);
+    if (idx !== -1) {
+      virtualizer.scrollToIndex(isDirty ? idx + 1 : idx, { align: "start" });
+    }
+    pendingRestoreShaRef.current = null;
+  }, [rows]);
 
   // Load next page on scroll near bottom
   const loadNextPage = useCallback(async () => {
@@ -221,6 +253,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
   // Scroll listener for infinite pagination & canvas redraw
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
+    scrollTopRef.current = target.scrollTop;
     setScrollTop(target.scrollTop);
 
     const distanceToBottom =
@@ -412,6 +445,16 @@ export const GraphView: React.FC<GraphViewProps> = ({
         onGoToHead={handleGoToHead}
         onRefresh={loadInitialPage}
         isRefreshing={loading}
+        columns={columns}
+        onToggleColumn={(id) => {
+          setColumns((prev) => {
+            const updated = prev.map((c) =>
+              c.id === id ? { ...c, visible: !c.visible } : c
+            );
+            saveColumns(updated);
+            return updated;
+          });
+        }}
       />
 
       {/* Main Table Area */}
