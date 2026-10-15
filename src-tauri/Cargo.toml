@@ -1,0 +1,27 @@
+[package]
+name = "vsc_git"
+version = "0.1.0"
+description = "Fast, lightweight Git GUI inspired by VS Code"
+authors = ["vsc_git team"]
+edition = "2021"
+default-run = "vsc_git"
+
+[lib]
+name = "vsc_git_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+[dependencies]
+tauri = { version = "2.12.4", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+specta = { version = "=2.0.0-rc.25", features = ["derive"] }
+tauri-specta = { version = "=2.0.0-rc.25", features = ["javascript", "typescript"] }
+notify = "8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2"
+parking_lot = "0.12"
+chrono = { version = "0.4", features = ["serde"] }
