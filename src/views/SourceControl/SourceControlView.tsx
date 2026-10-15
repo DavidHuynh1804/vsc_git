@@ -15,6 +15,7 @@ import { StatusEntry } from "@/scm/types";
 import { CommitBox } from "./CommitBox";
 import { FileItem } from "./FileItem";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { OperationBanner } from "@/components/OperationBanner";
 
 export const SourceControlView: React.FC = () => {
   const {
@@ -72,8 +73,16 @@ export const SourceControlView: React.FC = () => {
   });
 
   const handleOpenDiff = (entry: StatusEntry, context: "staged" | "unstaged" | "untracked" | "merge") => {
-    openDiff(entry.path, context);
     const fileName = entry.path.split("/").pop() ?? entry.path;
+    if (context === "merge") {
+      openTab({
+        id: `merge-${entry.path}`,
+        title: `Merge: ${fileName}`,
+        closable: true,
+      });
+      return;
+    }
+    openDiff(entry.path, context);
     openTab({
       id: `diff-${entry.path}`,
       title: `${fileName} (${context === "staged" ? "Index" : "Working Tree"})`,
@@ -124,6 +133,9 @@ export const SourceControlView: React.FC = () => {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-vscode-sidebar text-vscode-fg">
       {/* Top Header / View Actions */}
+      {/* In-progress operation banner */}
+      <OperationBanner />
+
       <div className="flex items-center justify-between border-b border-vscode-border px-3 py-2">
         <span className="text-xs font-semibold tracking-wider text-vscode-muted">
           SOURCE CONTROL

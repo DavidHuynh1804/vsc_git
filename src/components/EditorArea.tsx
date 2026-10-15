@@ -4,6 +4,11 @@ import { useUIStore, TabItem } from "@/stores/ui";
 import { WelcomeView } from "@/components/WelcomeView";
 import { DiffView } from "@/views/Diff/DiffView";
 import { GraphView } from "@/views/Graph/GraphView";
+import { MergeEditorView } from "@/views/MergeEditor/MergeEditorView";
+import { BlameView } from "@/views/Blame/BlameView";
+import { FileHistoryView } from "@/views/FileHistory/FileHistoryView";
+import { InteractiveRebaseView } from "@/views/Rebase/InteractiveRebaseView";
+import { GraphAction } from "@/graph/types";
 import { useScmStore } from "@/scm/scmStore";
 import { useRepoStore } from "@/stores/repo";
 import { SettingsView } from "@/views/Settings/SettingsView";
@@ -13,6 +18,19 @@ export const EditorArea: React.FC = () => {
   const { tabs, activeTabId, setActiveTabId, closeTab } = useUIStore();
   const { repoName, headBranch } = useRepoStore();
   const { activeDiff } = useScmStore();
+
+  const { openTab } = useUIStore();
+
+  const handleGraphAction = (action: GraphAction) => {
+    if (action.type === "rebase-interactive") {
+      const sha = typeof action.payload?.sha === "string" ? action.payload.sha : undefined;
+      openTab({
+        id: "rebase-interactive",
+        title: sha ? `Rebase (${sha.slice(0, 7)})` : "Interactive Rebase",
+        closable: true,
+      });
+    }
+  };
 
   const renderTabContent = (tab: TabItem) => {
     if (tab.id === "welcome") {
@@ -24,7 +42,7 @@ export const EditorArea: React.FC = () => {
     }
 
     if (tab.id === "graph") {
-      return <GraphView />;
+      return <GraphView onAction={handleGraphAction} />;
     }
 
     if (tab.id.startsWith("diff-") && tab.id !== "diff-") {
@@ -34,6 +52,31 @@ export const EditorArea: React.FC = () => {
       return <DiffView filePath={filePath} context={diffContext} />;
     }
 
+    if (tab.id.startsWith("merge-")) {
+      const filePath = tab.id.substring("merge-".length);
+      return <MergeEditorView filePath={filePath} />;
+    }
+
+    if (tab.id.startsWith("blame-")) {
+      const filePath = tab.id.substring("blame-".length);
+      return (
+        <BlameView
+          filePath={filePath}
+          onSelectCommitInGraph={() => {
+            openTab({ id: "graph", title: "Git Graph", closable: true });
+          }}
+        />
+      );
+    }
+
+    if (tab.id.startsWith("file-history-")) {
+      const filePath = tab.id.substring("file-history-".length);
+      return <FileHistoryView filePath={filePath} />;
+    }
+
+    if (tab.id === "rebase-interactive") {
+      return <InteractiveRebaseView />;
+    }
     return (
       <div className="flex h-full w-full flex-col items-center justify-center p-8 text-center text-vscode-muted gap-2">
         <Sparkles className="h-8 w-8 text-vscode-accent" />

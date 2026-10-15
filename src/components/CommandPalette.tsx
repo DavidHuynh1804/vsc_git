@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Search, FolderOpen, Terminal, Settings, Sun, Moon, RefreshCw, FileText, GitPullRequest, GitGraph } from "lucide-react";
+import { Search, FolderOpen, Terminal, Settings, Sun, Moon, RefreshCw, FileText, GitPullRequest, GitGraph, GitMerge, Layers } from "lucide-react";
 import { useUIStore } from "@/stores/ui";
 import { useRepoStore } from "@/stores/repo";
 import { useScmStore } from "@/scm/scmStore";
@@ -35,7 +35,7 @@ export const CommandPalette: React.FC = () => {
   } = useUIStore();
   const { setRepo, setLoading, setError } = useRepoStore();
 
-  const { stageAll, unstageAll, sync, fetch, pull, push, refreshStatus } = useScmStore();
+  const { status: scmStatus, stageAll, unstageAll, sync, fetch, pull, push, refreshStatus } = useScmStore();
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -158,6 +158,27 @@ export const CommandPalette: React.FC = () => {
         category: "View",
         title: "Show Stashes",
         action: () => setActiveActivity("stashes"),
+      },
+      {
+        id: "git-interactive-rebase",
+        category: "Git",
+        title: "Interactive Rebase...",
+        icon: Layers,
+        action: () => {
+          openTab({ id: "rebase-interactive", title: "Interactive Rebase", closable: true });
+        },
+      },
+      {
+        id: "git-open-merge-editor",
+        category: "Git",
+        title: "Open Merge Conflict Editor",
+        icon: GitMerge,
+        action: () => {
+          const unmerged = scmStatus?.entries.find((e) => e.kind.type === "Unmerged");
+          const targetPath = unmerged ? unmerged.path : "src/App.tsx";
+          const fileName = targetPath.split("/").pop() ?? targetPath;
+          openTab({ id: `merge-${targetPath}`, title: `Merge: ${fileName}`, closable: true });
+        },
       },
       {
         id: "view-settings",
