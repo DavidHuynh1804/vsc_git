@@ -19,6 +19,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             git_exec::get_git_output,
             commands::pick_folder,
             repo::jobs::cancel_job,
+            repo::ipc::answer_prompt,
         ])
         .events(collect_events![
             git_exec::GitOutputEvent,
@@ -27,6 +28,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             repo::jobs::JobProgressEvent,
             repo::jobs::JobDoneEvent,
             repo::jobs::JobChunkEvent,
+            repo::ipc::PromptRequestEvent,
         ])
 }
 
