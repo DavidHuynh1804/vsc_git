@@ -89,47 +89,74 @@ export class TauriAiDataSource implements AiDataSource {
     head: string,
     onChunk: (chunk: string) => void
   ): Promise<{ title: string; body: string }> {
-    const res = await commands.aiGeneratePr(base, head);
-    if (res.status === "error") {
-      throw new Error(res.error.message);
-    }
-    const jobId = res.data;
+    let targetJobId: string | null = null;
     let fullOutput = "";
+    const bufferedChunksById = new Map<string, string[]>();
+    const bufferedDoneById = new Map<string, { success: boolean; error: string | null }>();
     const { promise, resolve, reject } = Promise.withResolvers<void>();
-    let unlistenChunk: (() => void) | undefined;
-    let unlistenDone: (() => void) | undefined;
+
+    let unlistenChunk: () => void = () => {};
+    let unlistenDone: () => void = () => {};
 
     const cleanup = () => {
       if (unlistenChunk) unlistenChunk();
       if (unlistenDone) unlistenDone();
     };
 
-    events.jobChunk
-      .listen((e) => {
-        if (e.payload.id === jobId) {
+    const handleDone = (done: { success: boolean; error: string | null }) => {
+      cleanup();
+      if (done.success) {
+        resolve();
+      } else {
+        reject(new Error(done.error ?? "Failed to generate PR"));
+      }
+    };
+
+    unlistenChunk = await events.jobChunk.listen((e) => {
+      if (targetJobId !== null) {
+        if (e.payload.id === targetJobId) {
           fullOutput += e.payload.chunk;
           onChunk(e.payload.chunk);
         }
-      })
-      .then((u) => {
-        unlistenChunk = u;
-      });
+      } else {
+        const list = bufferedChunksById.get(e.payload.id) ?? [];
+        list.push(e.payload.chunk);
+        bufferedChunksById.set(e.payload.id, list);
+      }
+    });
 
-    events.jobDone
-      .listen((e) => {
-        if (e.payload.id === jobId) {
-          cleanup();
-          if (e.payload.success) {
-            resolve();
-          } else {
-            reject(new Error(e.payload.error ?? "Failed to generate PR"));
-          }
+    unlistenDone = await events.jobDone.listen((e) => {
+      if (targetJobId !== null) {
+        if (e.payload.id === targetJobId) {
+          handleDone({ success: e.payload.success, error: e.payload.error });
         }
-      })
-      .then((u) => {
-        unlistenDone = u;
-      });
+      } else {
+        bufferedDoneById.set(e.payload.id, {
+          success: e.payload.success,
+          error: e.payload.error,
+        });
+      }
+    });
 
+    const res = await commands.aiGeneratePr(base, head);
+    if (res.status === "error") {
+      cleanup();
+      throw new Error(res.error.message);
+    }
+    targetJobId = res.data;
+
+    const chunks = bufferedChunksById.get(targetJobId);
+    if (chunks) {
+      for (const chunk of chunks) {
+        fullOutput += chunk;
+        onChunk(chunk);
+      }
+    }
+
+    const done = bufferedDoneById.get(targetJobId);
+    if (done) {
+      handleDone(done);
+    }
     await promise;
     const lines = fullOutput.trim().split("\n");
     const title = lines[0] ?? "";
@@ -138,47 +165,74 @@ export class TauriAiDataSource implements AiDataSource {
   }
 
   async generateCommit(onChunk?: (chunk: string) => void): Promise<string> {
-    const res = await commands.aiGenerateCommit();
-    if (res.status === "error") {
-      throw new Error(res.error.message);
-    }
-    const jobId = res.data;
+    let targetJobId: string | null = null;
     let fullOutput = "";
+    const bufferedChunksById = new Map<string, string[]>();
+    const bufferedDoneById = new Map<string, { success: boolean; error: string | null }>();
     const { promise, resolve, reject } = Promise.withResolvers<string>();
-    let unlistenChunk: (() => void) | undefined;
-    let unlistenDone: (() => void) | undefined;
+
+    let unlistenChunk: () => void = () => {};
+    let unlistenDone: () => void = () => {};
 
     const cleanup = () => {
       if (unlistenChunk) unlistenChunk();
       if (unlistenDone) unlistenDone();
     };
 
-    events.jobChunk
-      .listen((e) => {
-        if (e.payload.id === jobId) {
+    const handleDone = (done: { success: boolean; error: string | null }) => {
+      cleanup();
+      if (done.success) {
+        resolve(fullOutput);
+      } else {
+        reject(new Error(done.error ?? "Failed to generate commit message"));
+      }
+    };
+
+    unlistenChunk = await events.jobChunk.listen((e) => {
+      if (targetJobId !== null) {
+        if (e.payload.id === targetJobId) {
           fullOutput += e.payload.chunk;
           onChunk?.(e.payload.chunk);
         }
-      })
-      .then((u) => {
-        unlistenChunk = u;
-      });
+      } else {
+        const list = bufferedChunksById.get(e.payload.id) ?? [];
+        list.push(e.payload.chunk);
+        bufferedChunksById.set(e.payload.id, list);
+      }
+    });
 
-    events.jobDone
-      .listen((e) => {
-        if (e.payload.id === jobId) {
-          cleanup();
-          if (e.payload.success) {
-            resolve(fullOutput);
-          } else {
-            reject(new Error(e.payload.error ?? "Failed to generate commit message"));
-          }
+    unlistenDone = await events.jobDone.listen((e) => {
+      if (targetJobId !== null) {
+        if (e.payload.id === targetJobId) {
+          handleDone({ success: e.payload.success, error: e.payload.error });
         }
-      })
-      .then((u) => {
-        unlistenDone = u;
-      });
+      } else {
+        bufferedDoneById.set(e.payload.id, {
+          success: e.payload.success,
+          error: e.payload.error,
+        });
+      }
+    });
 
+    const res = await commands.aiGenerateCommit();
+    if (res.status === "error") {
+      cleanup();
+      throw new Error(res.error.message);
+    }
+    targetJobId = res.data;
+
+    const chunks = bufferedChunksById.get(targetJobId);
+    if (chunks) {
+      for (const chunk of chunks) {
+        fullOutput += chunk;
+        onChunk?.(chunk);
+      }
+    }
+
+    const done = bufferedDoneById.get(targetJobId);
+    if (done) {
+      handleDone(done);
+    }
     return promise;
   }
 }

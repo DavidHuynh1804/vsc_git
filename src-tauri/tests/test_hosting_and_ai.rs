@@ -328,6 +328,24 @@ fn test_ai_consent_backend_enforcement() {
     assert_eq!(untrusted_err.kind, ErrorKind::AiProvider);
     assert!(untrusted_err.message.contains("AI consent not granted"));
 }
+#[test]
+fn test_ai_prompt_redaction_before_remote_request() {
+    let raw_commit = "fix: update token ghp_1234567890abcdefghijklmnopqrstuvwxyzAB";
+    let redacted_commit = ai::redact_text(raw_commit);
+    assert!(!redacted_commit.contains("ghp_1234567890abcdefghijklmnopqrstuvwxyzAB"));
+    assert!(redacted_commit.contains("[REDACTED]"));
+
+    let raw_diff =
+        "diff --git a/config.txt b/config.txt\n+GITLAB_TOKEN=glpat-abcdefghijklmnopqrst12";
+    let redacted_diff = ai::redact_text(raw_diff);
+    assert!(!redacted_diff.contains("glpat-abcdefghijklmnopqrst12"));
+    assert!(redacted_diff.contains("[REDACTED]"));
+
+    let (_sys, user) =
+        ai::prompt::build_pr_prompt("main", "feature", &[redacted_commit], &redacted_diff, "en");
+    assert!(!user.contains("ghp_1234567890abcdefghijklmnopqrstuvwxyzAB"));
+    assert!(!user.contains("glpat-abcdefghijklmnopqrst12"));
+}
 
 #[test]
 fn test_check_scopes_logic() {

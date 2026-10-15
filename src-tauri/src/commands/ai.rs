@@ -392,7 +392,7 @@ pub fn ai_generate_pr(
             Ok(out) => out
                 .stdout_lossy()
                 .lines()
-                .map(|s| s.trim().to_string())
+                .map(|s| ai::redact_text(s.trim()))
                 .filter(|s| !s.is_empty())
                 .collect(),
             Err(_) => Vec::new(),
@@ -404,7 +404,7 @@ pub fn ai_generate_pr(
             &["diff", "--stat", &base, &head],
             CommandOptions::read_only(),
         ) {
-            Ok(out) => out.stdout_lossy(),
+            Ok(out) => ai::redact_text(&out.stdout_lossy()),
             Err(_) => String::new(),
         };
 
@@ -514,7 +514,7 @@ pub fn ai_explain_commit(app: AppHandle, window: Window, sha: String) -> Result<
                 &["show", "-s", "--format=%s", &sha],
                 CommandOptions::read_only(),
             )
-            .map(|o| o.stdout_lossy().trim().to_string())
+            .map(|o| ai::redact_text(o.stdout_lossy().trim()))
             .unwrap_or_default();
 
         let body = cli
@@ -523,7 +523,7 @@ pub fn ai_explain_commit(app: AppHandle, window: Window, sha: String) -> Result<
                 &["show", "-s", "--format=%b", &sha],
                 CommandOptions::read_only(),
             )
-            .map(|o| o.stdout_lossy().trim().to_string())
+            .map(|o| ai::redact_text(o.stdout_lossy().trim()))
             .ok()
             .filter(|s| !s.is_empty());
 
@@ -533,9 +533,8 @@ pub fn ai_explain_commit(app: AppHandle, window: Window, sha: String) -> Result<
                 &["show", "--format=", "--stat", &sha],
                 CommandOptions::read_only(),
             )
-            .map(|o| o.stdout_lossy())
+            .map(|o| ai::redact_text(&o.stdout_lossy()))
             .unwrap_or_default();
-
         let (system_prompt, user_prompt) = ai::prompt::build_explain_commit_prompt(
             &sha,
             &subject,

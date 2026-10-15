@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
+import { events } from "@/bindings";
 import { checkRequiredScopes } from "./types";
 import { MockHostingDataSource, TauriHostingDataSource } from "./hosting";
 import {
@@ -318,6 +319,132 @@ describe("Integrations and Scope Checking", () => {
         provider: "claude",
         granted: true,
       });
+    });
+    it("handles fast-failure streaming path when backend fails immediately", async () => {
+      const eventListeners = new Map<string, number[]>();
+      let nextId = 1;
+
+      mockIPC(async (cmd, args) => {
+        if (cmd === "plugin:event|listen") {
+          if (args && typeof args === "object" && "event" in args && "handler" in args) {
+            const ev = String(args.event);
+            const hid = Number(args.handler);
+            const list = eventListeners.get(ev) ?? [];
+            list.push(hid);
+            eventListeners.set(ev, list);
+          }
+          return nextId++;
+        }
+        if (cmd === "plugin:event|emit") {
+          if (args && typeof args === "object" && "event" in args && "payload" in args) {
+            const ev = String(args.event);
+            const list = eventListeners.get(ev) ?? [];
+            const win = window as unknown as {
+              __TAURI_INTERNALS__?: {
+                runCallback: (id: number, data: unknown) => void;
+              };
+            };
+            for (const hid of list) {
+              win.__TAURI_INTERNALS__?.runCallback(hid, {
+                event: ev,
+                id: hid,
+                payload: args.payload,
+              });
+            }
+          }
+          return null;
+        }
+        if (cmd === "ai_generate_commit") {
+          const jobId = "fast-fail-job-1";
+          // Emit error immediately
+          await events.jobDone.emit({
+            id: jobId,
+            success: false,
+            error: "No staged changes found in repository",
+          });
+          return jobId;
+        }
+      });
+
+      const ds = new TauriAiDataSource();
+      await expect(ds.generateCommit()).rejects.toThrow(
+        "No staged changes found in repository"
+      );
+    });
+
+    it("maintains concurrent-job isolation during streaming", async () => {
+      const targetJobId = "target-ai-job-42";
+      const otherJobId = "unrelated-fetch-job-99";
+      const eventListeners = new Map<string, number[]>();
+      let nextId = 1;
+
+      mockIPC(async (cmd, args) => {
+        if (cmd === "plugin:event|listen") {
+          if (args && typeof args === "object" && "event" in args && "handler" in args) {
+            const ev = String(args.event);
+            const hid = Number(args.handler);
+            const list = eventListeners.get(ev) ?? [];
+            list.push(hid);
+            eventListeners.set(ev, list);
+          }
+          return nextId++;
+        }
+        if (cmd === "plugin:event|emit") {
+          if (args && typeof args === "object" && "event" in args && "payload" in args) {
+            const ev = String(args.event);
+            const list = eventListeners.get(ev) ?? [];
+            const win = window as unknown as {
+              __TAURI_INTERNALS__?: {
+                runCallback: (id: number, data: unknown) => void;
+              };
+            };
+            for (const hid of list) {
+              win.__TAURI_INTERNALS__?.runCallback(hid, {
+                event: ev,
+                id: hid,
+                payload: args.payload,
+              });
+            }
+          }
+          return null;
+        }
+        if (cmd === "ai_generate_commit") {
+          // Emit noise from another unrelated job before target starts
+          await events.jobChunk.emit({
+            id: otherJobId,
+            chunk: "unrelated chunk that must be ignored",
+          });
+          await events.jobDone.emit({
+            id: otherJobId,
+            success: true,
+            error: null,
+          });
+
+          // Now emit for target job
+          Promise.resolve().then(async () => {
+            await events.jobChunk.emit({
+              id: targetJobId,
+              chunk: "feat: target commit chunk",
+            });
+            await events.jobDone.emit({
+              id: targetJobId,
+              success: true,
+              error: null,
+            });
+          });
+
+          return targetJobId;
+        }
+      });
+
+      const receivedChunks: string[] = [];
+      const ds = new TauriAiDataSource();
+      const fullMessage = await ds.generateCommit((chunk) => {
+        receivedChunks.push(chunk);
+      });
+
+      expect(receivedChunks).toEqual(["feat: target commit chunk"]);
+      expect(fullMessage).toBe("feat: target commit chunk");
     });
   });
 });
