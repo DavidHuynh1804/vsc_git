@@ -3,6 +3,7 @@ import { Plus, Minus, RotateCcw, ExternalLink, MoreHorizontal } from "lucide-rea
 import { StatusEntry, getEntryBadge } from "@/scm/types";
 import { useScmStore } from "@/scm/scmStore";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useUIStore } from "@/stores/ui";
 
 export interface FileItemProps {
   entry: StatusEntry;
@@ -20,6 +21,7 @@ export const FileItem: React.FC<FileItemProps> = ({
   onOpenDiff,
 }) => {
   const { stage, unstage, discard, dataSource } = useScmStore();
+  const { openTab } = useUIStore();
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -240,6 +242,34 @@ export const FileItem: React.FC<FileItemProps> = ({
             className="flex w-full px-3 py-1.5 text-left text-vscode-fg hover:bg-vscode-hover"
           >
             Reveal in File Manager
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowMenu(false);
+              openTab({
+                id: `blame-${entry.path}`,
+                title: `Blame: ${fileName}`,
+                closable: true,
+              });
+            }}
+            className="flex w-full px-3 py-1.5 text-left text-vscode-fg hover:bg-vscode-hover"
+          >
+            Blame
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowMenu(false);
+              openTab({
+                id: `file-history-${entry.path}`,
+                title: `History: ${fileName}`,
+                closable: true,
+              });
+            }}
+            className="flex w-full px-3 py-1.5 text-left text-vscode-fg hover:bg-vscode-hover"
+          >
+            File History
           </button>
         </div>
       )}

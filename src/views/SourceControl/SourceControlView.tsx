@@ -73,8 +73,16 @@ export const SourceControlView: React.FC = () => {
   });
 
   const handleOpenDiff = (entry: StatusEntry, context: "staged" | "unstaged" | "untracked" | "merge") => {
-    openDiff(entry.path, context);
     const fileName = entry.path.split("/").pop() ?? entry.path;
+    if (context === "merge") {
+      openTab({
+        id: `merge-${entry.path}`,
+        title: `Merge: ${fileName}`,
+        closable: true,
+      });
+      return;
+    }
+    openDiff(entry.path, context);
     openTab({
       id: `diff-${entry.path}`,
       title: `${fileName} (${context === "staged" ? "Index" : "Working Tree"})`,
