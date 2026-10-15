@@ -1,6 +1,7 @@
 pub mod blob;
 pub mod detail;
 pub mod error;
+pub mod fallback;
 pub mod log;
 pub mod repo;
 

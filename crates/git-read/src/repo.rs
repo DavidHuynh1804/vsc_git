@@ -26,8 +26,9 @@ pub struct RefInfo {
 pub struct ReadRepo {
     path: PathBuf,
     repo: gix::Repository,
+    cli: git_core::GitCli,
+    force_fallback: bool,
 }
-
 impl ReadRepo {
     /// Open a repository at `path`. Supports working tree root, subdirectories,
     /// linked worktrees, and bare repositories.
@@ -38,8 +39,55 @@ impl ReadRepo {
             .map_err(|e| {
                 ReadError::Gix(format!("Failed to open repo at {}: {}", path.display(), e))
             })?;
+        let cli = git_core::GitCli::new("git");
+        Ok(Self {
+            path,
+            repo,
+            cli,
+            force_fallback: false,
+        })
+    }
 
-        Ok(Self { path, repo })
+    pub fn git_cli(&self) -> &git_core::GitCli {
+        &self.cli
+    }
+
+    pub fn set_force_fallback(&mut self, force: bool) {
+        self.force_fallback = force;
+    }
+
+    pub fn with_forced_fallback(mut self, force: bool) -> Self {
+        self.force_fallback = force;
+        self
+    }
+
+    pub fn force_fallback(&self) -> bool {
+        self.force_fallback
+    }
+
+    /// Execute an operation with gix first, falling back to git CLI when gix fails or forced.
+    pub fn with_cli_fallback<T, G, C>(
+        &self,
+        op_name: &str,
+        gix_op: G,
+        cli_op: C,
+    ) -> Result<T, ReadError>
+    where
+        G: FnOnce() -> Result<T, ReadError>,
+        C: FnOnce(&git_core::GitCli, &Path) -> Result<T, ReadError>,
+    {
+        if self.force_fallback {
+            tracing::warn!("gix failed for {op_name} (forced), falling back to git CLI");
+            return cli_op(&self.cli, &self.path);
+        }
+
+        match gix_op() {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                tracing::warn!("gix failed for {op_name} ({e}), falling back to git CLI");
+                cli_op(&self.cli, &self.path)
+            }
+        }
     }
 
     pub fn path(&self) -> &Path {
@@ -91,6 +139,10 @@ impl ReadRepo {
 
     /// Read all references with their kind, target SHA, upstream branch, and ahead/behind counts.
     pub fn refs(&self) -> Result<Vec<RefInfo>, ReadError> {
+        self.with_cli_fallback("refs", || self.refs_gix(), crate::fallback::refs_cli)
+    }
+
+    pub fn refs_gix(&self) -> Result<Vec<RefInfo>, ReadError> {
         let config = self.repo.config_snapshot();
         let ref_platform = self
             .repo

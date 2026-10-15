@@ -60,6 +60,8 @@ pub struct GraphWalker {
     lane_state: LaneState,
     iter: Box<dyn Iterator<Item = Result<gix::traverse::commit::Info, ReadError>> + Send>,
     peeked: Option<gix::traverse::commit::Info>,
+    cli_offset: usize,
+    force_fallback: bool,
 }
 
 impl GraphWalker {
@@ -115,6 +117,7 @@ impl GraphWalker {
         let lane_state = LaneState::new();
 
         if tips.is_empty() {
+            let force_fallback = repo.force_fallback();
             return Ok(Self {
                 repo,
                 filter,
@@ -122,6 +125,8 @@ impl GraphWalker {
                 lane_state,
                 iter: Box::new(std::iter::empty()),
                 peeked: None,
+                cli_offset: 0,
+                force_fallback,
             });
         }
 
@@ -143,6 +148,7 @@ impl GraphWalker {
             None => None,
         };
 
+        let force_fallback = repo.force_fallback();
         Ok(Self {
             repo,
             filter,
@@ -150,6 +156,8 @@ impl GraphWalker {
             lane_state,
             iter,
             peeked,
+            cli_offset: 0,
+            force_fallback,
         })
     }
 
@@ -159,7 +167,22 @@ impl GraphWalker {
         self.lane_state = fresh.lane_state;
         self.iter = fresh.iter;
         self.peeked = fresh.peeked;
+        self.cli_offset = 0;
+        self.force_fallback = fresh.force_fallback;
         Ok(())
+    }
+
+    pub fn set_force_fallback(&mut self, force: bool) {
+        self.force_fallback = force;
+    }
+
+    pub fn with_forced_fallback(mut self, force: bool) -> Self {
+        self.force_fallback = force;
+        self
+    }
+
+    pub fn force_fallback(&self) -> bool {
+        self.force_fallback
     }
 
     pub fn lane_state(&self) -> &LaneState {
@@ -172,6 +195,35 @@ impl GraphWalker {
 
     /// Read the next page of `n` commits and their graph rows.
     pub fn next_page(&mut self, n: usize) -> Result<GraphPage, ReadError> {
+        if self.force_fallback {
+            tracing::warn!("gix failed for next_page (forced), falling back to git CLI");
+            return crate::fallback::next_page_cli(
+                self.repo.git_cli(),
+                self.repo.path(),
+                &self.filter,
+                &mut self.lane_state,
+                &mut self.cli_offset,
+                n,
+            );
+        }
+
+        match self.next_page_gix(n) {
+            Ok(page) => Ok(page),
+            Err(e) => {
+                tracing::warn!("gix failed for next_page ({e}), falling back to git CLI");
+                crate::fallback::next_page_cli(
+                    self.repo.git_cli(),
+                    self.repo.path(),
+                    &self.filter,
+                    &mut self.lane_state,
+                    &mut self.cli_offset,
+                    n,
+                )
+            }
+        }
+    }
+
+    fn next_page_gix(&mut self, n: usize) -> Result<GraphPage, ReadError> {
         let mut commit_summaries = Vec::with_capacity(n);
         let mut commit_nodes = Vec::with_capacity(n);
 

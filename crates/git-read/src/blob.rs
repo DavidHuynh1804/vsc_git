@@ -10,12 +10,21 @@ impl ReadRepo {
         rev_spec: &str,
         path: impl AsRef<Path>,
     ) -> Result<Option<Vec<u8>>, ReadError> {
+        let path_ref = path.as_ref();
+        self.with_cli_fallback(
+            "blob_at",
+            || self.blob_at_gix(rev_spec, path_ref),
+            |cli, repo_path| crate::fallback::blob_at_cli(cli, repo_path, rev_spec, path_ref),
+        )
+    }
+
+    pub fn blob_at_gix(&self, rev_spec: &str, path: &Path) -> Result<Option<Vec<u8>>, ReadError> {
         let tree = match self.resolve_tree(rev_spec) {
             Ok(t) => t,
             Err(_) => return Ok(None),
         };
 
-        let entry = match tree.lookup_entry_by_path(path.as_ref()) {
+        let entry = match tree.lookup_entry_by_path(path) {
             Ok(Some(entry)) => entry,
             _ => return Ok(None),
         };
