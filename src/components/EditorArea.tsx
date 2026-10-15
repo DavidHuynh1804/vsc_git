@@ -1,7 +1,8 @@
 import React from "react";
-import { X, GitGraph, FileCode, Sparkles } from "lucide-react";
+import { X, FileCode, Sparkles } from "lucide-react";
 import { useUIStore, TabItem } from "@/stores/ui";
 import { WelcomeView } from "@/components/WelcomeView";
+import { GraphView } from "@/views/Graph/GraphView";
 import { useRepoStore } from "@/stores/repo";
 
 export const EditorArea: React.FC = () => {
@@ -14,16 +15,7 @@ export const EditorArea: React.FC = () => {
     }
 
     if (tab.id === "graph") {
-      return (
-        <div className="flex h-full w-full flex-col items-center justify-center p-8 text-center text-vscode-muted gap-3">
-          <GitGraph className="h-12 w-12 text-vscode-accent opacity-80" />
-          <h2 className="text-base font-semibold text-vscode-fg">Git Graph (Milestone 2)</h2>
-          <p className="max-w-md text-xs leading-relaxed">
-            Fast, interactive commit graph with topological lanes, commit details, compare diffs,
-            and 60 FPS virtualization for repositories with 200k+ commits.
-          </p>
-        </div>
-      );
+      return <GraphView />;
     }
 
     if (tab.id.startsWith("diff-")) {
