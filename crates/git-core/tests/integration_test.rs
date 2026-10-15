@@ -1,8 +1,9 @@
 use git_core::{
     apply_ranges, checkout, checkout_detached, commit, create_branch, create_tag, delete_branch,
     delete_tag, discard, last_commit_message, list_refs, rename_branch, set_upstream, stage,
-    stage_all, status, unstage, unstage_all, ApplyMode, CommandOptions, CommitOptions, FileStatus,
-    GitCli, GitOutput, LineSelection, RefKind, StatusEntryKind,
+    stage_all, stash_apply, stash_drop, stash_list, stash_pop, stash_push, stash_show, status,
+    unstage, unstage_all, ApplyMode, CommandOptions, CommitOptions, FileStatus, GitCli, GitOutput,
+    LineSelection, RefKind, StashPushOptions, StatusEntryKind,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -360,4 +361,62 @@ fn test_integration_branch_and_tag_ops() {
         .collect();
     assert_eq!(remaining_tags.len(), 1);
     assert_eq!(remaining_tags[0].name, "v2.0");
+}
+
+#[test]
+fn test_integration_stash_push_pop_untracked() {
+    let repo = TestRepo::new();
+    repo.write_file("file.txt", "v1\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+    commit(&repo.cli, repo.path(), CommitOptions::new("initial commit")).unwrap();
+
+    // Modify tracked file and add untracked file
+    repo.write_file("file.txt", "v2\n");
+    repo.write_file("new_file.txt", "untracked content\n");
+
+    // Stash with untracked
+    stash_push(
+        &repo.cli,
+        repo.path(),
+        StashPushOptions::new()
+            .with_message("wip changes")
+            .with_untracked(true),
+    )
+    .unwrap();
+
+    // Working tree should be clean
+    let st = status(&repo.cli, repo.path()).unwrap();
+    assert_eq!(st.unstaged().len(), 0);
+    assert_eq!(st.untracked().len(), 0);
+    assert_eq!(repo.read_file("file.txt"), "v1\n");
+    assert!(!repo.path().join("new_file.txt").exists());
+
+    // Check stash list and show
+    let stashes = stash_list(&repo.cli, repo.path()).unwrap();
+    assert_eq!(stashes.len(), 1);
+    assert_eq!(stashes[0].message, "wip changes");
+    let patch = stash_show(&repo.cli, repo.path(), None).unwrap();
+    assert!(patch.contains("-v1"));
+    assert!(patch.contains("+v2"));
+
+    // Pop stash
+    stash_pop(&repo.cli, repo.path(), None).unwrap();
+    assert_eq!(repo.read_file("file.txt"), "v2\n");
+    assert_eq!(repo.read_file("new_file.txt"), "untracked content\n");
+
+    // List should be empty
+    let stashes_empty = stash_list(&repo.cli, repo.path()).unwrap();
+    assert!(stashes_empty.is_empty());
+
+    // Test apply and drop
+    stash_push(
+        &repo.cli,
+        repo.path(),
+        StashPushOptions::new().with_message("stash to drop"),
+    )
+    .unwrap();
+    stash_apply(&repo.cli, repo.path(), None).unwrap();
+    assert_eq!(stash_list(&repo.cli, repo.path()).unwrap().len(), 1);
+    stash_drop(&repo.cli, repo.path(), None).unwrap();
+    assert!(stash_list(&repo.cli, repo.path()).unwrap().is_empty());
 }
