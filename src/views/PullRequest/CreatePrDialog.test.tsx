@@ -1,0 +1,135 @@
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { CreatePrDialog } from "./CreatePrDialog";
+import { MockHostingDataSource } from "@/integrations/hosting";
+import { MockAiDataSource } from "@/integrations/ai";
+
+describe("CreatePrDialog", () => {
+  it("renders when open and shows base and head branches", async () => {
+    const hostDs = new MockHostingDataSource();
+    render(
+      <CreatePrDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        currentBranch="feat/my-feature"
+        defaultBaseBranch="main"
+        hostingDataSource={hostDs}
+      />
+    );
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("main")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("feat/my-feature")).toBeInTheDocument();
+  });
+
+  it("shows unpushed warning when head branch is not pushed and allows pushing first", async () => {
+    const hostDs = new MockHostingDataSource();
+    // Default mock has "main" pushed, but "feat/unpushed" is not pushed
+    render(
+      <CreatePrDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        currentBranch="feat/unpushed"
+        defaultBaseBranch="main"
+        hostingDataSource={hostDs}
+      />
+    );
+
+    const warning = await screen.findByTestId("unpushed-warning");
+    expect(warning).toBeInTheDocument();
+    expect(screen.getByText(/chưa được push lên remote/i)).toBeInTheDocument();
+
+    const pushBtn = screen.getByRole("button", { name: /Push trước/i });
+    fireEvent.click(pushBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("unpushed-warning")).not.toBeInTheDocument();
+    });
+    expect(await hostDs.checkBranchPushed("feat/unpushed")).toBe(true);
+  });
+
+  it("streams PR body and sets title when ✨ AI button is clicked", async () => {
+    const hostDs = new MockHostingDataSource();
+    const aiDs = new MockAiDataSource();
+    render(
+      <CreatePrDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        currentBranch="feat/my-feature"
+        defaultBaseBranch="main"
+        hostingDataSource={hostDs}
+        aiDataSource={aiDs}
+      />
+    );
+
+    const aiBtn = screen.getByRole("button", { name: /Generate with AI/i });
+    fireEvent.click(aiBtn);
+
+    const textarea = screen.getByPlaceholderText(/Write PR description/i);
+
+    await waitFor(() => {
+      expect(textarea).not.toHaveValue("");
+    });
+
+    expect(textarea.innerHTML || (textarea as HTMLTextAreaElement).value).toContain(
+      "Summary of Changes"
+    );
+    // Title should also be auto-populated
+    const titleInput = screen.getByPlaceholderText(/feat\(auth\)/i);
+    expect(titleInput).toHaveValue("feat: integrate changes from feat/my-feature into main");
+  });
+
+  it("searches reviewers with debounce and adds reviewer chip", async () => {
+    const hostDs = new MockHostingDataSource();
+    render(
+      <CreatePrDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        currentBranch="feat/my-feature"
+        hostingDataSource={hostDs}
+      />
+    );
+
+    const reviewerInput = screen.getByPlaceholderText(/Type username or name/i);
+    fireEvent.change(reviewerInput, { target: { value: "alice" } });
+
+    // Reviewer suggestion should appear after debounce
+    const option = await screen.findByRole("option");
+    expect(option).toHaveTextContent("@alice");
+
+    fireEvent.click(option);
+
+    // Chip should now be displayed
+    expect(screen.getByText("@alice")).toBeInTheDocument();
+
+    // Remove reviewer chip
+    const removeBtn = screen.getByRole("button", { name: /Remove reviewer alice/i });
+    fireEvent.click(removeBtn);
+    expect(screen.queryByText("@alice")).not.toBeInTheDocument();
+  });
+
+  it("submits PR and displays the created PR link", async () => {
+    const hostDs = new MockHostingDataSource();
+    render(
+      <CreatePrDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        currentBranch="feat/my-feature"
+        defaultBaseBranch="main"
+        hostingDataSource={hostDs}
+      />
+    );
+
+    const titleInput = screen.getByPlaceholderText(/feat\(auth\)/i);
+    fireEvent.change(titleInput, { target: { value: "feat: implement settings view" } });
+
+    const submitBtn = screen.getByRole("button", { name: /Create Pull Request/i });
+    fireEvent.click(submitBtn);
+
+    expect(await screen.findByText(/Created!/i)).toBeInTheDocument();
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      expect.stringContaining("pull")
+    );
+  });
+});
