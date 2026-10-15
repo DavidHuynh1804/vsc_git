@@ -9,6 +9,11 @@ default-run = "vsc_git"
 [lib]
 name = "vsc_git_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "vsc_git"
+path = "src/main.rs"
+test = false
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 [dependencies]
