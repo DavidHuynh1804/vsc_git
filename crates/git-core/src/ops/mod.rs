@@ -5,6 +5,7 @@ pub mod stage;
 pub mod stash;
 pub mod state;
 pub mod status;
+pub mod sync;
 
 pub use branch::{
     checkout, checkout_detached, create_branch, create_tag, delete_branch, delete_tag, list_refs,
@@ -19,3 +20,7 @@ pub use stash::{
 };
 pub use state::{op_abort, op_continue, op_skip, operation_state, OperationKind, OperationState};
 pub use status::status;
+pub use sync::{
+    fetch, parse_progress_line, parse_progress_stream, pull, push, FetchTarget, Progress,
+    ProgressCallback, PullMode, PushOptions,
+};

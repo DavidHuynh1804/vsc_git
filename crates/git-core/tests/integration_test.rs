@@ -1,10 +1,11 @@
 use git_core::{
     apply_ranges, checkout, checkout_detached, commit, create_branch, create_tag, delete_branch,
-    delete_tag, discard, file_content, last_commit_message, list_refs, op_abort, operation_state,
-    rename_branch, set_upstream, stage, stage_all, stash_apply, stash_drop, stash_list, stash_pop,
-    stash_push, stash_show, status, unified_diff, unstage, unstage_all, ApplyMode, CommandOptions,
-    CommitOptions, FileRev, FileStatus, GitCli, GitOutput, LineSelection, OperationKind,
-    OperationState, RefKind, StashPushOptions, StatusEntryKind,
+    delete_tag, discard, fetch, file_content, last_commit_message, list_refs, op_abort,
+    operation_state, pull, push, rename_branch, set_upstream, stage, stage_all, stash_apply,
+    stash_drop, stash_list, stash_pop, stash_push, stash_show, status, unified_diff, unstage,
+    unstage_all, ApplyMode, CommandOptions, CommitOptions, ErrorKind, FetchTarget, FileRev,
+    FileStatus, GitCli, GitOutput, LineSelection, OperationKind, OperationState, PullMode,
+    PushOptions, RefKind, StashPushOptions, StatusEntryKind,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -507,4 +508,103 @@ fn test_integration_operation_state_merge_and_rebase_abort() {
         operation_state(&repo.cli, repo.path()).unwrap(),
         OperationState::None
     );
+}
+
+#[test]
+fn test_integration_sync_fetch_pull_push_non_fast_forward() {
+    let bare_dir = tempdir().unwrap();
+    let bare_path = bare_dir.path();
+    let cli = GitCli::default();
+    cli.exec(bare_path, &["init", "--bare"], CommandOptions::default())
+        .unwrap();
+
+    let bare_url = bare_path.to_string_lossy().to_string();
+
+    // Repo 1
+    let repo1 = TestRepo::new();
+    repo1
+        .cli
+        .exec(
+            repo1.path(),
+            &["remote", "add", "origin", &bare_url],
+            CommandOptions::default(),
+        )
+        .unwrap();
+    repo1.write_file("file.txt", "v1\n");
+    stage_all(&repo1.cli, repo1.path()).unwrap();
+    commit(&repo1.cli, repo1.path(), CommitOptions::new("c1")).unwrap();
+
+    // Push from repo 1 with set_upstream
+    push(
+        &repo1.cli,
+        repo1.path(),
+        PushOptions::new()
+            .with_remote("origin")
+            .with_branch("main")
+            .with_upstream(true),
+        None,
+        None,
+    )
+    .unwrap();
+
+    // Repo 2
+    let repo2 = TestRepo::new();
+    repo2
+        .cli
+        .exec(
+            repo2.path(),
+            &["remote", "add", "origin", &bare_url],
+            CommandOptions::default(),
+        )
+        .unwrap();
+
+    // Fetch in repo 2 with progress callback
+    let progress_events = std::sync::Arc::new(parking_lot::Mutex::new(Vec::new()));
+    let p_clone = progress_events.clone();
+    fetch(
+        &repo2.cli,
+        repo2.path(),
+        FetchTarget::Remote("origin".into()),
+        true,
+        Some(std::sync::Arc::new(move |p| {
+            p_clone.lock().push(p);
+        })),
+        None,
+    )
+    .unwrap();
+
+    // Pull into repo 2
+    checkout(&repo2.cli, repo2.path(), "main").unwrap();
+    pull(&repo2.cli, repo2.path(), PullMode::Default, None, None).unwrap();
+    assert_eq!(repo2.read_file("file.txt"), "v1\n");
+
+    // Repo 1 makes another commit and pushes
+    repo1.write_file("file.txt", "v2 from repo1\n");
+    stage_all(&repo1.cli, repo1.path()).unwrap();
+    commit(&repo1.cli, repo1.path(), CommitOptions::new("c2")).unwrap();
+    push(
+        &repo1.cli,
+        repo1.path(),
+        PushOptions::new().with_remote("origin").with_branch("main"),
+        None,
+        None,
+    )
+    .unwrap();
+
+    // Repo 2 makes a conflicting commit without pulling
+    repo2.write_file("file.txt", "v2 conflicting from repo2\n");
+    stage_all(&repo2.cli, repo2.path()).unwrap();
+    commit(&repo2.cli, repo2.path(), CommitOptions::new("c2 conflict")).unwrap();
+
+    // Repo 2 tries to push -> fails with NonFastForward
+    let push_res = push(
+        &repo2.cli,
+        repo2.path(),
+        PushOptions::new().with_remote("origin").with_branch("main"),
+        None,
+        None,
+    );
+    assert!(push_res.is_err());
+    let err = push_res.unwrap_err();
+    assert_eq!(err.kind, ErrorKind::NonFastForward);
 }
