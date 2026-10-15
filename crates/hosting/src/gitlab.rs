@@ -792,4 +792,22 @@ mod tests {
             "https://gitlab.com/my-group/sub/my-repo/-/merge_requests/77"
         );
     }
+
+    #[tokio::test]
+    async fn test_gitlab_404_not_found() {
+        let server = MockServer::start().await;
+        let host = setup_gitlab_host(&server);
+
+        Mock::given(method("GET"))
+            .and(path("/projects/my-group%2Fsub%2Fmy-repo/pipelines"))
+            .and(query_param("sha", "nonexistent"))
+            .respond_with(ResponseTemplate::new(404).set_body_json(serde_json::json!({
+                "message": "404 Project Not Found"
+            })))
+            .mount(&server)
+            .await;
+
+        let err = host.ci_status("nonexistent").await.unwrap_err();
+        assert_eq!(err.kind, crate::rate_limit::HostErrorKind::NotFound);
+    }
 }

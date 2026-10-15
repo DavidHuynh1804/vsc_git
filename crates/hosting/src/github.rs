@@ -872,4 +872,21 @@ mod tests {
         let pr_url = host.web_url(Target::Pr(42)).unwrap();
         assert_eq!(pr_url, "https://github.com/owner/repo/pull/42");
     }
+
+    #[tokio::test]
+    async fn test_github_404_not_found() {
+        let server = MockServer::start().await;
+        let host = setup_host(&server);
+
+        Mock::given(method("GET"))
+            .and(path("/repos/owner/repo/commits/missing-sha/check-runs"))
+            .respond_with(ResponseTemplate::new(404).set_body_json(serde_json::json!({
+                "message": "Not Found"
+            })))
+            .mount(&server)
+            .await;
+
+        let err = host.ci_status("missing-sha").await.unwrap_err();
+        assert_eq!(err.kind, crate::rate_limit::HostErrorKind::NotFound);
+    }
 }
