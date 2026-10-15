@@ -17,6 +17,18 @@
   --vscode-tab-active-bg: #1e1e1e;
   --vscode-tab-inactive-bg: #2d2d2d;
   --vscode-output-bg: #181818;
+  --lane-0: #3b82f6;
+  --lane-1: #22c55e;
+  --lane-2: #eab308;
+  --lane-3: #ef4444;
+  --lane-4: #a855f7;
+  --lane-5: #06b6d4;
+  --lane-6: #f97316;
+  --lane-7: #ec4899;
+  --lane-8: #84cc16;
+  --lane-9: #6366f1;
+  --lane-10: #14b8a6;
+  --lane-11: #f43f5e;
 }
 
 .light {
@@ -38,6 +50,18 @@
   --vscode-tab-active-bg: #ffffff;
   --vscode-tab-inactive-bg: #ececec;
   --vscode-output-bg: #f8f8f8;
+  --lane-0: #1d4ed8;
+  --lane-1: #15803d;
+  --lane-2: #b45309;
+  --lane-3: #b91c1c;
+  --lane-4: #7e22ce;
+  --lane-5: #0e7490;
+  --lane-6: #c2410c;
+  --lane-7: #be185d;
+  --lane-8: #4d7c0f;
+  --lane-9: #4338ca;
+  --lane-10: #0f766e;
+  --lane-11: #be123c;
 }
 
 * {

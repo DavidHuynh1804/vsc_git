@@ -1,5 +1,28 @@
 import type { Edge, GraphRow } from "./types";
+import { PALETTE_HEX } from "./dataSource";
 
+export const LIGHT_PALETTE_HEX: readonly string[] = [
+  "#1d4ed8",
+  "#15803d",
+  "#b45309",
+  "#b91c1c",
+  "#7e22ce",
+  "#0e7490",
+  "#c2410c",
+  "#be185d",
+  "#4d7c0f",
+  "#4338ca",
+  "#0f766e",
+  "#be123c",
+];
+
+export function getLaneColor(colorIndex: number, isLight?: boolean): string {
+  const idx = ((colorIndex % 12) + 12) % 12;
+  const light =
+    isLight ??
+    (typeof document !== "undefined" && document.documentElement.classList.contains("light"));
+  return light ? LIGHT_PALETTE_HEX[idx] : PALETTE_HEX[idx];
+}
 export interface Point {
   x: number;
   y: number;
