@@ -208,6 +208,7 @@ pub fn send_request_to(addr: &str, token: &str, kind: IpcRequestKind) -> Result<
 pub const MAX_REQUEST_SIZE: usize = 4 * 1024 * 1024; // 4 MiB
 pub const DEFAULT_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
+#[derive(Debug)]
 pub struct IpcListener {
     listener: Option<LocalSocketListener>,
     addr: String,
@@ -295,7 +296,6 @@ impl Drop for IpcListener {
         #[cfg(unix)]
         {
             let path = std::path::Path::new(&self.addr);
-            let _ = std::fs::remove_file(path);
             if let Some(parent) = path.parent() {
                 let base_dir = std::env::var_os("XDG_RUNTIME_DIR")
                     .map(std::path::PathBuf::from)
@@ -316,8 +316,8 @@ impl Drop for IpcListener {
 
 /// Creates a new local socket listener at the given address with hardened permissions.
 ///
-/// - Unix: ensures parent directory is 0700 if created, sets socket file permissions to 0600,
-///   and automatically cleans up socket file on drop.
+/// - Unix: verifies parent directory permissions restrict access (0700) or creates it with 0700,
+///   sets socket file permissions to 0600, and cleans up on drop.
 /// - Windows: configures named pipe with access restricted to current user (owner) only
 ///   and rejects remote network clients.
 pub fn create_listener(addr: &str) -> Result<IpcListener, IpcError> {
@@ -331,19 +331,31 @@ pub fn create_listener(addr: &str) -> Result<IpcListener, IpcError> {
         use interprocess::os::windows::security_descriptor::SecurityDescriptor;
         let sddl = widestring::u16cstr!("D:P(A;;GA;;;OW)");
         let sd = SecurityDescriptor::deserialize(sddl).map_err(|e| {
-            IpcError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("failed to initialize security descriptor: {e}"),
-            ))
+            IpcError::Io(std::io::Error::other(format!(
+                "failed to initialize security descriptor: {e}"
+            )))
         })?;
         options = options.security_descriptor(sd);
     }
 
     #[cfg(unix)]
     {
+        use std::os::unix::fs::PermissionsExt;
         let path = std::path::Path::new(addr);
         if let Some(parent) = path.parent() {
-            if !parent.exists() {
+            if parent.exists() {
+                let parent_meta = std::fs::metadata(parent)?;
+                let mode = parent_meta.permissions().mode() & 0o777;
+                if mode != 0o700 {
+                    return Err(IpcError::Io(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        format!(
+                            "IPC socket parent directory must have 0700 permissions (got 0{:o})",
+                            mode
+                        ),
+                    )));
+                }
+            } else {
                 use std::os::unix::fs::DirBuilderExt;
                 let mut builder = std::fs::DirBuilder::new();
                 builder.mode(0o700);
@@ -351,7 +363,6 @@ pub fn create_listener(addr: &str) -> Result<IpcListener, IpcError> {
             }
         }
     }
-
     let listener = options.create_sync()?;
 
     #[cfg(unix)]
@@ -595,13 +606,12 @@ mod tests {
 
     #[test]
     fn test_ipc_echo_server() {
-        let dir = tempdir().unwrap();
-        let sock_path = dir.path().join("test.sock");
-        let addr = sock_path.to_str().unwrap();
+        let addr = new_session_addr();
         let token = "test-secret-token";
 
-        let listener = create_listener(addr).unwrap();
+        let listener = create_listener(&addr).unwrap();
         let token_clone = token.to_string();
+        let addr_clone = addr.clone();
 
         let server_thread = std::thread::spawn(move || {
             let conn = listener.accept().unwrap();
@@ -616,7 +626,7 @@ mod tests {
         });
 
         let resp = send_request_to(
-            addr,
+            &addr_clone,
             token,
             IpcRequestKind::AskPass {
                 prompt: "Password:".to_string(),
@@ -630,18 +640,15 @@ mod tests {
 
     #[test]
     fn test_ipc_unauthorized_token() {
-        let dir = tempdir().unwrap();
-        let sock_path = dir.path().join("unauth.sock");
-        let addr = sock_path.to_str().unwrap();
-
-        let listener = create_listener(addr).unwrap();
+        let addr = new_session_addr();
+        let listener = create_listener(&addr).unwrap();
         let server_thread = std::thread::spawn(move || {
             let conn = listener.accept().unwrap();
             handle_connection(conn, "correct-token", |_| IpcResponse::ok("ok")).unwrap();
         });
 
         let err = send_request_to(
-            addr,
+            &addr,
             "wrong-token",
             IpcRequestKind::AskPass {
                 prompt: "test".to_string(),
@@ -733,10 +740,9 @@ mod tests {
 
     #[test]
     fn test_ipc_request_too_large() {
-        let dir = tempdir().unwrap();
-        let sock_path = dir.path().join("too_large.sock");
-        let addr = sock_path.to_str().unwrap();
-        let listener = create_listener(addr).unwrap();
+        let addr = new_session_addr();
+        let listener = create_listener(&addr).unwrap();
+        let addr_clone = addr.clone();
 
         let server_thread = std::thread::spawn(move || {
             let conn = listener.accept().unwrap();
@@ -750,7 +756,7 @@ mod tests {
             assert!(res.is_err());
         });
 
-        let name = to_socket_name(addr).unwrap();
+        let name = to_socket_name(&addr_clone).unwrap();
         let mut client = Stream::connect(name).unwrap();
         let huge = "x".repeat(200);
         let req = format!(
@@ -765,10 +771,9 @@ mod tests {
 
     #[test]
     fn test_ipc_read_timeout() {
-        let dir = tempdir().unwrap();
-        let sock_path = dir.path().join("read_timeout.sock");
-        let addr = sock_path.to_str().unwrap();
-        let listener = create_listener(addr).unwrap();
+        let addr = new_session_addr();
+        let listener = create_listener(&addr).unwrap();
+        let addr_clone = addr.clone();
 
         let server_thread = std::thread::spawn(move || {
             let conn = listener.accept().unwrap();
@@ -782,19 +787,19 @@ mod tests {
             assert!(res.is_err());
         });
 
-        let name = to_socket_name(addr).unwrap();
+        let name = to_socket_name(&addr_clone).unwrap();
         let _client = Stream::connect(name).unwrap();
         server_thread.join().unwrap();
     }
     #[test]
     fn test_ipc_slow_trickle_timeout() {
-        let dir = tempdir().unwrap();
-        let sock_path = dir.path().join("trickle.sock");
-        let addr = sock_path.to_str().unwrap();
-        let listener = create_listener(addr).unwrap();
+        let addr = new_session_addr();
+        let listener = create_listener(&addr).unwrap();
+        let addr_clone = addr.clone();
 
         let server_thread = std::thread::spawn(move || {
             let conn = listener.accept().unwrap();
+            let start = std::time::Instant::now();
             let res = handle_connection_with_timeout(
                 conn,
                 "test-tok",
@@ -802,27 +807,53 @@ mod tests {
                 1024,
                 |_| IpcResponse::ok("ok"),
             );
+            let elapsed = start.elapsed();
             assert!(res.is_err());
+            // Overall deadline must terminate in ~150ms despite each read taking only 30ms (well before 30 * 30ms = 900ms)
+            assert!(
+                elapsed >= std::time::Duration::from_millis(140)
+                    && elapsed < std::time::Duration::from_millis(600),
+                "Elapsed {elapsed:?} outside expected deadline window"
+            );
         });
 
-        let name = to_socket_name(addr).unwrap();
+        let name = to_socket_name(&addr_clone).unwrap();
         let mut client = Stream::connect(name).unwrap();
-        // Slowly send 1 byte every 40ms without newline
-        for _ in 0..10 {
+        // Client trickles 1 byte every 30ms without newline for 30 iterations (900ms total)
+        for _ in 0..30 {
             if client.write_all(b"a").is_err() || client.flush().is_err() {
                 break;
             }
-            std::thread::sleep(std::time::Duration::from_millis(40));
+            std::thread::sleep(std::time::Duration::from_millis(30));
         }
         server_thread.join().unwrap();
     }
 
     #[test]
+    fn test_insecure_parent_dir_rejected() {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let dir = tempdir().unwrap();
+            let insecure_dir = dir.path().join("insecure");
+            std::fs::create_dir(&insecure_dir).unwrap();
+            std::fs::set_permissions(&insecure_dir, std::fs::Permissions::from_mode(0o755))
+                .unwrap();
+
+            let sock_path = insecure_dir.join("test.sock");
+            let res = create_listener(sock_path.to_str().unwrap());
+            assert!(res.is_err());
+            match res.unwrap_err() {
+                IpcError::Io(e) => assert_eq!(e.kind(), std::io::ErrorKind::PermissionDenied),
+                other => panic!("Expected PermissionDenied IO error, got: {:?}", other),
+            }
+        }
+    }
+
+    #[test]
     fn test_ipc_listener_shutdown_and_cancellation() {
-        let dir = tempdir().unwrap();
-        let sock_path = dir.path().join("shutdown.sock");
-        let addr = sock_path.to_str().unwrap();
-        let listener = std::sync::Arc::new(create_listener(addr).unwrap());
+        let addr = new_session_addr();
+        let listener = std::sync::Arc::new(create_listener(&addr).unwrap());
         let listener_clone = std::sync::Arc::clone(&listener);
 
         let server_thread = std::thread::spawn(move || listener_clone.accept());
@@ -837,10 +868,8 @@ mod tests {
 
     #[test]
     fn test_ipc_listener_accept_timeout() {
-        let dir = tempdir().unwrap();
-        let sock_path = dir.path().join("accept_timeout.sock");
-        let addr = sock_path.to_str().unwrap();
-        let listener = create_listener(addr).unwrap();
+        let addr = new_session_addr();
+        let listener = create_listener(&addr).unwrap();
 
         let res = listener
             .accept_timeout(std::time::Duration::from_millis(50))
