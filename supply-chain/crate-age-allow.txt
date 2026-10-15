@@ -1,0 +1,4 @@
+# Supply chain policy: Rust crate release-age allowlist
+# Format: <name>@<version> # <reason>
+# Example:
+# keyring-core@1.0.1 # CVE-XXXX emergency fix
