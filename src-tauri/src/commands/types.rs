@@ -179,10 +179,12 @@ pub struct AppRefInfo {
     pub upstream: Option<String>,
     pub ahead: u32,
     pub behind: u32,
+    pub is_head: bool,
 }
 
 impl From<git_read::RefInfo> for AppRefInfo {
     fn from(r: git_read::RefInfo) -> Self {
+        let is_head = r.kind == git_graph::RefKind::Head;
         Self {
             name: r.name,
             kind: r.kind.into(),
@@ -190,6 +192,7 @@ impl From<git_read::RefInfo> for AppRefInfo {
             upstream: r.upstream,
             ahead: r.ahead,
             behind: r.behind,
+            is_head,
         }
     }
 }
@@ -203,7 +206,7 @@ impl From<git_core::RefInfo> for AppRefInfo {
             K::Tag => AppRefKind::Tag,
         };
         let full_name = r.full_name.clone();
-        let is_head = full_name == "HEAD" || r.name == "HEAD";
+        let is_head = r.is_head || full_name == "HEAD" || r.name == "HEAD";
         Self {
             name: r.name,
             kind: if is_head { AppRefKind::Head } else { kind },
@@ -211,6 +214,7 @@ impl From<git_core::RefInfo> for AppRefInfo {
             upstream: r.upstream,
             ahead: r.ahead,
             behind: r.behind,
+            is_head,
         }
     }
 }

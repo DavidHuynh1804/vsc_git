@@ -76,7 +76,7 @@ export const commands = {
 	merge: (refName: string, opts: string | null) => typedError<null, AppError>(__TAURI_INVOKE("merge", { refName, opts })),
 	rebase: (refName: string) => typedError<null, AppError>(__TAURI_INVOKE("rebase", { refName })),
 	rebaseInteractive: (base: string) => typedError<string, AppError>(__TAURI_INVOKE("rebase_interactive", { base })),
-	submitRebaseTodo: (items: AppRebaseTodoEntry[], promptId: string | null) => typedError<null, AppError>(__TAURI_INVOKE("submit_rebase_todo", { items, promptId })),
+	submitRebaseTodo: (items: AppRebaseTodoEntry[], promptId: string) => typedError<null, AppError>(__TAURI_INVOKE("submit_rebase_todo", { items, promptId })),
 	opContinue: () => typedError<null, AppError>(__TAURI_INVOKE("op_continue")),
 	opSkip: () => typedError<null, AppError>(__TAURI_INVOKE("op_skip")),
 	opAbort: () => typedError<null, AppError>(__TAURI_INVOKE("op_abort")),
@@ -323,6 +323,7 @@ export type AppRefInfo = {
 	upstream: string | null,
 	ahead: number,
 	behind: number,
+	is_head: boolean,
 };
 
 export type AppRefKind = "LocalBranch" | "RemoteBranch" | "Tag" | "Head" | "Stash";

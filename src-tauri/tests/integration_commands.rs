@@ -421,7 +421,11 @@ fn test_sequence_editor_submit_rebase_todo() {
     ];
     let serialized = git_core::ops::serialize_rebase_todo(&items);
 
-    assert!(prompts.answer_by_kind("sequence_editor", Some(serialized.clone())));
+    assert!(prompts.answer_prompt_by_id(
+        "prompt_seq_1",
+        "sequence_editor",
+        Some(serialized.clone())
+    ));
     let received = rx.recv().unwrap();
     assert_eq!(received, Some(serialized));
 }

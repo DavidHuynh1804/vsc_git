@@ -58,19 +58,14 @@ impl PendingPrompts {
         }
     }
 
-    pub fn answer_by_kind(&self, kind: &str, val: Option<String>) -> bool {
+    pub fn answer_prompt_by_id(&self, id: &str, expected_kind: &str, val: Option<String>) -> bool {
         let mut map = self.prompts.write();
-        let target_key = map.iter().find_map(|(k, v)| {
-            if v.kind == kind {
-                Some(k.clone())
-            } else {
-                None
-            }
-        });
-        if let Some(key) = target_key {
-            if let Some(entry) = map.remove(&key) {
-                let _ = entry.tx.send(val);
-                return true;
+        if let Some(entry) = map.get(id) {
+            if entry.kind == expected_kind {
+                if let Some(entry) = map.remove(id) {
+                    let _ = entry.tx.send(val);
+                    return true;
+                }
             }
         }
         false
@@ -436,7 +431,7 @@ mod tests {
         prompts.insert("p1".to_string(), "askpass".to_string(), tx);
 
         // Answering for sequence_editor does not answer an askpass prompt
-        assert!(!prompts.answer_by_kind("sequence_editor", Some("rebase".to_string())));
+        assert!(!prompts.answer_prompt_by_id("p1", "sequence_editor", Some("rebase".to_string())));
 
         assert!(prompts.answer("p1", Some("secret".to_string())));
         assert_eq!(rx.recv().unwrap(), Some("secret".to_string()));

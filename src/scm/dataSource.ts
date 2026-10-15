@@ -871,7 +871,7 @@ export class TauriScmDataSource implements ScmDataSource {
   async getDraftMessage(_repoPath?: string): Promise<string> {
     const res = await commands.getDraftMessage();
     if (res.status === "error") {
-      return "";
+      this.handleError(res.error);
     }
     return res.data;
   }
@@ -898,13 +898,13 @@ export class TauriScmDataSource implements ScmDataSource {
           name: r.name,
           fullName: `refs/heads/${r.name}`,
           kind: "local",
-          isHead: r.kind === "Head",
+          isHead: r.is_head,
           upstream: r.upstream,
           ahead: r.ahead,
           behind: r.behind,
           targetOid: r.target_sha,
         });
-        if (r.kind === "Head") {
+        if (r.is_head) {
           head = r.name;
         }
       } else if (r.kind === "RemoteBranch") {

@@ -487,7 +487,7 @@ export class TauriM3DataSource implements M3DataSource {
         subject: it.subject,
       };
     });
-    const res = await commands.submitRebaseTodo(appItems, promptId ?? null);
+    const res = await commands.submitRebaseTodo(appItems, promptId ?? "");
     if (res.status === "error") {
       this.handleError(res.error);
     }

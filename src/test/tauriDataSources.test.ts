@@ -276,6 +276,7 @@ describe("Tauri Data Sources with mockIPC", () => {
               upstream: "origin/main",
               ahead: 0,
               behind: 0,
+              is_head: true,
             },
             {
               name: "origin/main",
@@ -284,6 +285,7 @@ describe("Tauri Data Sources with mockIPC", () => {
               upstream: null,
               ahead: 0,
               behind: 0,
+              is_head: false,
             },
             {
               name: "v1.0.0",
@@ -292,6 +294,7 @@ describe("Tauri Data Sources with mockIPC", () => {
               upstream: null,
               ahead: 0,
               behind: 0,
+              is_head: false,
             },
           ];
         }

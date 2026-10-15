@@ -57,37 +57,47 @@ export const InteractiveRebaseView: React.FC<InteractiveRebaseViewProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (isMock()) return;
     let active = true;
-    const unlistenPromise = events.promptRequest.listen((event) => {
-      if (active && event.payload.kind === "sequence_editor") {
-        setPromptId(event.payload.id);
-        const parsed = parseRebaseTodo(event.payload.prompt);
-        if (parsed.length > 0) {
-          setEntries(parsed);
-        }
-      }
-    });
-    return () => {
-      active = false;
-      unlistenPromise.then((u) => u());
-    };
-  }, []);
+    let unlisten: (() => void) | undefined;
 
-  useEffect(() => {
-    if (!initialEntries || initialEntries.length === 0) {
-      if (baseSha) {
-        void m3DataSource.rebaseInteractive(baseSha).catch((err) => {
-          console.error("Failed to start interactive rebase:", err);
+    const setup = async () => {
+      if (!isMock()) {
+        unlisten = await events.promptRequest.listen((event) => {
+          if (active && event.payload.kind === "sequence_editor") {
+            setPromptId(event.payload.id);
+            const parsed = parseRebaseTodo(event.payload.prompt);
+            if (parsed.length > 0) {
+              setEntries(parsed);
+            }
+          }
         });
       }
-      if (m3DataSource.getRebaseTodo) {
-        const mockItems = m3DataSource.getRebaseTodo();
-        if (mockItems && mockItems.length > 0) {
-          setEntries(mockItems);
+
+      if (!initialEntries || initialEntries.length === 0) {
+        if (baseSha) {
+          try {
+            await m3DataSource.rebaseInteractive(baseSha);
+          } catch {
+            // Error is reported to toast by datasource
+          }
+        }
+        if (m3DataSource.getRebaseTodo) {
+          const mockItems = m3DataSource.getRebaseTodo();
+          if (mockItems && mockItems.length > 0 && active) {
+            setEntries(mockItems);
+          }
         }
       }
-    }
+    };
+
+    void setup();
+
+    return () => {
+      active = false;
+      if (unlisten) {
+        unlisten();
+      }
+    };
   }, [baseSha, initialEntries, m3DataSource]);
 
   const validation = validateRebaseTodo(entries);

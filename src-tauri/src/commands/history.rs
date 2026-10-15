@@ -126,26 +126,16 @@ pub fn submit_rebase_todo(
     _app: AppHandle,
     _window: Window,
     items: Vec<AppRebaseTodoEntry>,
-    prompt_id: Option<String>,
+    prompt_id: String,
 ) -> Result<(), AppError> {
     let core_items: Vec<git_core::RebaseTodoEntry> = items.into_iter().map(Into::into).collect();
     let text = git_core::ops::serialize_rebase_todo(&core_items);
     let prompts = crate::repo::ipc::get_pending_prompts();
-    let answered = if let Some(id) = &prompt_id {
-        prompts.answer(id, Some(text))
-    } else {
-        prompts.answer_by_kind("sequence_editor", Some(text))
-    };
+    let answered = prompts.answer_prompt_by_id(&prompt_id, "sequence_editor", Some(text));
     if !answered {
         return Err(AppError::new(
             ErrorKind::Internal,
-            format!(
-                "No active sequence_editor prompt found{}",
-                prompt_id
-                    .as_ref()
-                    .map(|id| format!(" with ID '{id}'"))
-                    .unwrap_or_default()
-            ),
+            format!("No active sequence_editor prompt found with ID '{prompt_id}'"),
         ));
     }
     Ok(())

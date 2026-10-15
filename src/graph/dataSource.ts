@@ -648,7 +648,10 @@ export class TauriGraphDataSource implements GraphDataSource {
 
   async isDirty(): Promise<boolean> {
     const res = await commands.getStatus();
-    if (res.status === "error") return false;
+    if (res.status === "error") {
+      reportAppError(res.error);
+      return false;
+    }
     return res.data.entries.length > 0;
   }
 }
