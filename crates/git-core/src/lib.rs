@@ -2,6 +2,7 @@ pub mod cli;
 pub mod error;
 pub mod ops;
 pub mod parse;
+pub mod patch;
 
 pub use cli::{
     CancelToken, CommandObserver, CommandOptions, GitCli, GitCommandRecord, GitOutput, GitVersion,
@@ -14,3 +15,4 @@ pub use parse::{
     parse_status_v2, BranchInfo, FileStatus, RepoStatus, StatusEntry, StatusEntryKind,
     SubmoduleState,
 };
+pub use patch::{apply_ranges, build_range_patch, ApplyMode, LineRange};
