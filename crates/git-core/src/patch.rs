@@ -44,7 +44,7 @@ fn parse_hunk_header(line: &str) -> Option<(u32, u32, u32, u32, String)> {
     let rest = trimmed[2..].trim_start();
     let end_idx = rest.find("@@")?;
     let ranges_part = rest[..end_idx].trim();
-    let suffix = rest[end_idx + 2..].to_string();
+    let suffix = rest[end_idx + 2..].trim_end_matches('\r').to_string();
 
     let mut parts = ranges_part.split_whitespace();
     let old_part = parts.next()?.strip_prefix('-')?;
@@ -78,7 +78,11 @@ pub fn build_range_patch(diff_content: &str, ranges: &[LineRange]) -> Option<Str
     let mut hunks_raw = Vec::new();
 
     let mut current_hunk: Option<Vec<String>> = None;
-    for line in diff_content.lines() {
+    let mut raw_lines: Vec<&str> = diff_content.split('\n').collect();
+    if raw_lines.last() == Some(&"") {
+        raw_lines.pop();
+    }
+    for line in raw_lines {
         if line.starts_with("@@") {
             if let Some(hunk) = current_hunk.take() {
                 hunks_raw.push(hunk);
@@ -404,7 +408,7 @@ mod tests {
     fn test_patch_crlf_preservation() {
         let diff = "diff --git a/file.txt b/file.txt\r\n--- a/file.txt\r\n+++ b/file.txt\r\n@@ -1,0 +2,1 @@\r\n+crlf_line\r\n";
         let patch = build_range_patch(diff, &[LineRange::new(2, 2)]).unwrap();
-        assert!(patch.contains("+crlf_line"));
+        assert!(patch.contains("+crlf_line\r\n"));
     }
 
     #[test]

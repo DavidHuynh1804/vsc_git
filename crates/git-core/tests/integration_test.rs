@@ -237,3 +237,39 @@ fn test_integration_single_line_stage_unstage_revert() {
     let current_content = repo.read_file("doc.txt");
     assert_eq!(current_content, "line1\nline2\nline3\nline4_new\n");
 }
+
+#[test]
+fn test_integration_crlf_apply_ranges() {
+    let repo = TestRepo::new();
+    repo.git(&["config", "core.autocrlf", "false"]);
+
+    // Initial file with CRLF line endings
+    let initial_content = "line1\r\nline2\r\nline3\r\n";
+    repo.write_file("crlf.txt", initial_content);
+
+    stage_all(&repo.cli, repo.path()).unwrap();
+    repo.git(&["commit", "-m", "add crlf.txt"]);
+
+    // Modify 2 lines: line 2 modified, and add line 4
+    let modified_content = "line1\r\nline2_mod\r\nline3\r\nline4_new\r\n";
+    repo.write_file("crlf.txt", modified_content);
+
+    // Stage ONLY line 4 (+line4_new)
+    apply_ranges(
+        &repo.cli,
+        repo.path(),
+        "crlf.txt",
+        &[LineRange::new(4, 4)],
+        ApplyMode::Stage,
+    )
+    .unwrap();
+
+    // Check git diff --cached
+    let cached_diff = repo.git(&["diff", "--cached"]).stdout_lossy();
+    assert!(cached_diff.contains("+line4_new"));
+    assert!(!cached_diff.contains("line2_mod"));
+
+    // Check file in index via `git show :crlf.txt` bytes
+    let index_bytes = repo.git(&["show", ":crlf.txt"]).stdout;
+    assert_eq!(index_bytes, b"line1\r\nline2\r\nline3\r\nline4_new\r\n");
+}
