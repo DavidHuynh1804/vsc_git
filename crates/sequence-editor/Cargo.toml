@@ -1,0 +1,16 @@
+[package]
+name = "sequence-editor"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "vsc-git-sequence-editor"
+path = "src/main.rs"
+
+[dependencies]
+vsc-ipc = { path = "../vsc-ipc" }
+
+[dev-dependencies]
+git-core = { path = "../git-core" }
+tempfile = "3"
