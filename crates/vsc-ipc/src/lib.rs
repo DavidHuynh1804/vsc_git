@@ -91,6 +91,20 @@ pub fn to_socket_name(addr: &str) -> std::io::Result<interprocess::local_socket:
     }
 }
 
+/// Formats a helper binary path as a `GIT_EDITOR` / `GIT_SEQUENCE_EDITOR` value.
+///
+/// Git runs editor commands through `sh`, which treats backslashes as escapes,
+/// so Windows paths are converted to forward slashes and the path is quoted.
+pub fn git_editor_command(path: &std::path::Path) -> String {
+    #[allow(unused_mut)]
+    let mut s = path.to_string_lossy().into_owned();
+    #[cfg(windows)]
+    {
+        s = s.replace('\\', "/");
+    }
+    format!("'{}'", s.replace('\'', r"'\''"))
+}
+
 /// Sends a request using `VSC_GIT_IPC_ADDR` and `VSC_GIT_IPC_TOKEN` from the environment.
 pub fn send_request(kind: IpcRequestKind) -> Result<String, IpcError> {
     let addr = std::env::var(ENV_IPC_ADDR).map_err(|_| IpcError::MissingEnv(ENV_IPC_ADDR))?;
@@ -186,6 +200,12 @@ where
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn test_git_editor_command_quotes_path() {
+        let cmd = git_editor_command(std::path::Path::new("/opt/my app/it's-editor"));
+        assert_eq!(cmd, r"'/opt/my app/it'\''s-editor'");
+    }
 
     #[test]
     fn test_ipc_echo_server() {

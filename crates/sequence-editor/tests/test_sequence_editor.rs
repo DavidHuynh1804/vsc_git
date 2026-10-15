@@ -2,10 +2,21 @@ use git_core::{parse_rebase_todo, serialize_rebase_todo, RebaseAction};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use std::sync::mpsc;
+use std::thread::JoinHandle;
+use std::time::Duration;
 use tempfile::tempdir;
 use vsc_ipc::{
-    create_listener, handle_connection, IpcRequestKind, IpcResponse, ENV_IPC_ADDR, ENV_IPC_TOKEN,
+    create_listener, git_editor_command, handle_connection, IpcRequestKind, IpcResponse,
+    ENV_IPC_ADDR, ENV_IPC_TOKEN,
 };
+
+/// Waits for the IPC server thread, failing instead of hanging if the editor never connected.
+fn join_server(handle: JoinHandle<()>, done: mpsc::Receiver<()>) {
+    done.recv_timeout(Duration::from_secs(30))
+        .expect("sequence editor never connected to the IPC server");
+    handle.join().unwrap();
+}
 
 fn run_git(dir: &Path, args: &[&str]) {
     let output = Command::new("git")
@@ -56,6 +67,7 @@ fn test_git_rebase_interactive_with_sequence_editor() {
     let token_clone = token.clone();
 
     // In background, handle the sequence editor request: drop commit 2
+    let (done_tx, done_rx) = mpsc::channel();
     let server_handle = std::thread::spawn(move || {
         let conn = listener.accept().unwrap();
         handle_connection(conn, &token_clone, |kind| match kind {
@@ -74,6 +86,7 @@ fn test_git_rebase_interactive_with_sequence_editor() {
             other => panic!("Unexpected request kind: {:?}", other),
         })
         .unwrap();
+        let _ = done_tx.send(());
     });
 
     let bin_path = env!("CARGO_BIN_EXE_vsc-git-sequence-editor");
@@ -82,7 +95,10 @@ fn test_git_rebase_interactive_with_sequence_editor() {
     let output = Command::new("git")
         .args(["rebase", "-i", "HEAD~2"])
         .current_dir(repo_path)
-        .env("GIT_SEQUENCE_EDITOR", bin_path)
+        .env(
+            "GIT_SEQUENCE_EDITOR",
+            git_editor_command(Path::new(bin_path)),
+        )
         .env(ENV_IPC_ADDR, &addr)
         .env(ENV_IPC_TOKEN, &token)
         .output()
@@ -93,7 +109,7 @@ fn test_git_rebase_interactive_with_sequence_editor() {
         "rebase failed: {:?}",
         String::from_utf8_lossy(&output.stderr)
     );
-    server_handle.join().unwrap();
+    join_server(server_handle, done_rx);
 
     // Verify commit history: "commit 2 to drop" should not be in git log
     let log_output = Command::new("git")
@@ -117,6 +133,7 @@ fn test_sequence_editor_commit_editmsg() {
     let listener = create_listener(&addr).unwrap();
     let token_clone = token.clone();
 
+    let (done_tx, done_rx) = mpsc::channel();
     let server_handle = std::thread::spawn(move || {
         let conn = listener.accept().unwrap();
         handle_connection(conn, &token_clone, |kind| match kind {
@@ -127,6 +144,7 @@ fn test_sequence_editor_commit_editmsg() {
             other => panic!("Unexpected kind: {:?}", other),
         })
         .unwrap();
+        let _ = done_tx.send(());
     });
 
     let msg_file = dir.path().join("COMMIT_EDITMSG");
@@ -143,7 +161,7 @@ fn test_sequence_editor_commit_editmsg() {
     assert!(output.status.success());
     let new_content = fs::read_to_string(&msg_file).unwrap();
     assert_eq!(new_content, "New Message Edited\n");
-    server_handle.join().unwrap();
+    join_server(server_handle, done_rx);
 }
 #[test]
 fn test_git_rebase_cancelled_by_user() {
@@ -171,16 +189,21 @@ fn test_git_rebase_cancelled_by_user() {
     let token_clone = token.clone();
 
     // Return cancel from user
+    let (done_tx, done_rx) = mpsc::channel();
     let server_handle = std::thread::spawn(move || {
         let conn = listener.accept().unwrap();
         handle_connection(conn, &token_clone, |_| IpcResponse::cancel()).unwrap();
+        let _ = done_tx.send(());
     });
 
     let bin_path = env!("CARGO_BIN_EXE_vsc-git-sequence-editor");
     let output = Command::new("git")
         .args(["rebase", "-i", "HEAD~1"])
         .current_dir(repo_path)
-        .env("GIT_SEQUENCE_EDITOR", bin_path)
+        .env(
+            "GIT_SEQUENCE_EDITOR",
+            git_editor_command(Path::new(bin_path)),
+        )
         .env(ENV_IPC_ADDR, &addr)
         .env(ENV_IPC_TOKEN, &token)
         .output()
@@ -188,5 +211,5 @@ fn test_git_rebase_cancelled_by_user() {
 
     // Rebase should fail/abort because editor returned exit 1
     assert!(!output.status.success());
-    server_handle.join().unwrap();
+    join_server(server_handle, done_rx);
 }

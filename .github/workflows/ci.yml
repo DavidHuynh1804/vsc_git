@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "feat/**", "fix/**"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  check-and-build:
+    name: CI (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    steps:
+      - name: Configure Git
+        run: |
+          git config --global core.autocrlf false
+          git config --global init.defaultBranch main
+          git config --global user.name "CI"
+          git config --global user.email "ci@example.com"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Install Node dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Frontend Lint
+        run: pnpm lint
+
+      - name: Frontend Typecheck
+        run: pnpm typecheck
+
+      - name: Frontend Tests
+        run: pnpm test
+
+      - name: Rust Format Check
+        run: cargo fmt --check
+
+      - name: Rust Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Rust Tests (Unix)
+        if: matrix.os != 'windows-latest'
+        run: cargo test --workspace
+
+      - name: Rust Tests (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          $manifest = @"
+          <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+            <dependency>
+              <dependentAssembly>
+                <assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls" version="6.0.0.0" processorArchitecture="*" publicKeyToken="6595b64144ccf1df" language="*"/>
+              </dependentAssembly>
+            </dependency>
+          </assembly>
+          "@
+          $manifestPath = "$env:TEMP\test_manifest.xml"
+          Set-Content -Path $manifestPath -Value $manifest
+          $env:RUSTFLAGS = "-C link-arg=/MANIFEST:EMBED -C link-arg=/MANIFESTINPUT:$manifestPath"
+          cargo test --workspace
+
+      - name: Tauri Build (Debug, No Bundle)
+        run: pnpm tauri build --debug --no-bundle
