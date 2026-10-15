@@ -92,14 +92,36 @@ impl GitVersion {
     }
 }
 
+pub type StderrCallback = Arc<dyn Fn(&str) + Send + Sync>;
+
 /// Options configuring git command execution.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct CommandOptions {
     pub read_only: bool,
     pub stdin: Option<Vec<u8>>,
     pub timeout: Option<Duration>,
     pub cancel_token: Option<CancelToken>,
     pub extra_env: HashMap<String, String>,
+    pub stderr_callback: Option<StderrCallback>,
+}
+
+impl std::fmt::Debug for CommandOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CommandOptions")
+            .field("read_only", &self.read_only)
+            .field(
+                "stdin",
+                &self.stdin.as_ref().map(|s| format!("{} bytes", s.len())),
+            )
+            .field("timeout", &self.timeout)
+            .field("cancel_token", &self.cancel_token)
+            .field("extra_env", &self.extra_env)
+            .field(
+                "stderr_callback",
+                &self.stderr_callback.as_ref().map(|_| "<callback>"),
+            )
+            .finish()
+    }
 }
 
 impl CommandOptions {
@@ -122,6 +144,16 @@ impl CommandOptions {
 
     pub fn with_cancel_token(mut self, token: CancelToken) -> Self {
         self.cancel_token = Some(token);
+        self
+    }
+
+    pub fn with_env(mut self, key: impl Into<String>, val: impl Into<String>) -> Self {
+        self.extra_env.insert(key.into(), val.into());
+        self
+    }
+
+    pub fn with_stderr_callback(mut self, cb: StderrCallback) -> Self {
+        self.stderr_callback = Some(cb);
         self
     }
 }
@@ -302,9 +334,40 @@ impl GitCli {
         });
 
         let mut stderr_handle = child.stderr.take().expect("stderr piped");
+        let stderr_cb = options.stderr_callback.clone();
         let stderr_thread = std::thread::spawn(move || {
             let mut buf = Vec::new();
-            let _ = stderr_handle.read_to_end(&mut buf);
+            if let Some(cb) = stderr_cb {
+                let mut chunk = [0u8; 1024];
+                let mut line_buf = Vec::new();
+                loop {
+                    match stderr_handle.read(&mut chunk) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            buf.extend_from_slice(&chunk[..n]);
+                            for &b in &chunk[..n] {
+                                if b == b'\r' || b == b'\n' {
+                                    if !line_buf.is_empty() {
+                                        let s = String::from_utf8_lossy(&line_buf);
+                                        cb(&s);
+                                        line_buf.clear();
+                                    }
+                                } else {
+                                    line_buf.push(b);
+                                }
+                            }
+                        }
+                        Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                        Err(_) => break,
+                    }
+                }
+                if !line_buf.is_empty() {
+                    let s = String::from_utf8_lossy(&line_buf);
+                    cb(&s);
+                }
+            } else {
+                let _ = stderr_handle.read_to_end(&mut buf);
+            }
             buf
         });
 
