@@ -8,6 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "sidecars": "node scripts/build-sidecars.mjs",
+    "sidecars:release": "node scripts/build-sidecars.mjs --release",
     "lint": "eslint .",
     "typecheck": "tsc -b",
     "test": "vitest run",
