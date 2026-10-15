@@ -4,6 +4,7 @@ pub mod commit;
 pub mod conflict;
 pub mod content;
 pub mod history;
+pub mod rebase_todo;
 pub mod stage;
 pub mod stash;
 pub mod state;
@@ -22,6 +23,7 @@ pub use conflict::{
 };
 pub use content::{file_content, unified_diff, FileRev};
 pub use history::{file_history, parse_file_history, FileHistoryEntry};
+pub use rebase_todo::{parse_rebase_todo, serialize_rebase_todo, RebaseAction, RebaseTodoEntry};
 pub use stage::{discard, discard_all, repo_has_commits, stage, stage_all, unstage, unstage_all};
 pub use stash::{
     stash_apply, stash_drop, stash_list, stash_pop, stash_push, stash_show, StashEntry,
