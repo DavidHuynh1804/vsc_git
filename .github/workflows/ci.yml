@@ -60,8 +60,27 @@ jobs:
       - name: Rust Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: Rust Tests
+      - name: Rust Tests (Unix)
+        if: matrix.os != 'windows-latest'
         run: cargo test --workspace
+
+      - name: Rust Tests (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          $manifest = @"
+          <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+            <dependency>
+              <dependentAssembly>
+                <assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls" version="6.0.0.0" processorArchitecture="*" publicKeyToken="6595b64144ccf1df" language="*"/>
+              </dependentAssembly>
+            </dependency>
+          </assembly>
+          "@
+          $manifestPath = "$env:TEMP\test_manifest.xml"
+          Set-Content -Path $manifestPath -Value $manifest
+          $env:RUSTFLAGS = "-C link-arg=/MANIFEST:EMBED -C link-arg=/MANIFESTINPUT:$manifestPath"
+          cargo test --workspace
 
       - name: Tauri Build (Debug, No Bundle)
         run: pnpm tauri build --debug --no-bundle
