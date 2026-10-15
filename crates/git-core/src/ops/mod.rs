@@ -1,3 +1,4 @@
+pub mod blame;
 pub mod branch;
 pub mod commit;
 pub mod content;
@@ -7,6 +8,7 @@ pub mod state;
 pub mod status;
 pub mod sync;
 
+pub use blame::{blame, BlameOptions};
 pub use branch::{
     checkout, checkout_detached, create_branch, create_tag, delete_branch, delete_tag, list_refs,
     rename_branch, set_upstream, RefInfo, RefKind,
