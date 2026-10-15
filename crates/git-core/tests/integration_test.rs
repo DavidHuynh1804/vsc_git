@@ -1,7 +1,8 @@
 use git_core::{
-    apply_ranges, commit, discard, last_commit_message, stage, stage_all, status, unstage,
-    unstage_all, ApplyMode, CommandOptions, CommitOptions, FileStatus, GitCli, GitOutput,
-    LineSelection, StatusEntryKind,
+    apply_ranges, checkout, checkout_detached, commit, create_branch, create_tag, delete_branch,
+    delete_tag, discard, last_commit_message, list_refs, rename_branch, set_upstream, stage,
+    stage_all, status, unstage, unstage_all, ApplyMode, CommandOptions, CommitOptions, FileStatus,
+    GitCli, GitOutput, LineSelection, RefKind, StatusEntryKind,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -312,4 +313,51 @@ fn test_integration_commit_amend_and_options() {
     let msg = last_commit_message(&repo.cli, repo.path()).unwrap();
     assert!(msg.starts_with("feat: amended commit"));
     assert!(msg.contains("Signed-off-by: Integration Tester <integration@test.com>"));
+}
+
+#[test]
+fn test_integration_branch_and_tag_ops() {
+    let repo = TestRepo::new();
+    repo.write_file("file.txt", "base\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+    commit(&repo.cli, repo.path(), CommitOptions::new("base commit")).unwrap();
+
+    // Create branch and list
+    create_branch(&repo.cli, repo.path(), "feature", None).unwrap();
+    let refs = list_refs(&repo.cli, repo.path()).unwrap();
+    assert_eq!(refs.len(), 2);
+    // Set upstream and checkout feature
+    set_upstream(&repo.cli, repo.path(), Some("feature"), "main").unwrap();
+    checkout(&repo.cli, repo.path(), "feature").unwrap();
+    let cur_refs = list_refs(&repo.cli, repo.path()).unwrap();
+    let cur_branch = cur_refs.iter().find(|r| r.is_head).unwrap();
+    assert_eq!(cur_branch.name, "feature");
+
+    // Checkout detached
+    let commit_id = cur_branch.commit_id.clone();
+    checkout_detached(&repo.cli, repo.path(), &commit_id).unwrap();
+
+    // Rename and delete
+    checkout(&repo.cli, repo.path(), "main").unwrap();
+    rename_branch(&repo.cli, repo.path(), Some("feature"), "feat-new").unwrap();
+    delete_branch(&repo.cli, repo.path(), "feat-new", false).unwrap();
+
+    // Tag create & delete
+    create_tag(&repo.cli, repo.path(), "v1.0", None, None).unwrap();
+    create_tag(&repo.cli, repo.path(), "v2.0", None, Some("release 2.0")).unwrap();
+    let refs_with_tags = list_refs(&repo.cli, repo.path()).unwrap();
+    let tags: Vec<_> = refs_with_tags
+        .iter()
+        .filter(|r| r.kind == RefKind::Tag)
+        .collect();
+    assert_eq!(tags.len(), 2);
+
+    delete_tag(&repo.cli, repo.path(), "v1.0").unwrap();
+    let final_refs = list_refs(&repo.cli, repo.path()).unwrap();
+    let remaining_tags: Vec<_> = final_refs
+        .iter()
+        .filter(|r| r.kind == RefKind::Tag)
+        .collect();
+    assert_eq!(remaining_tags.len(), 1);
+    assert_eq!(remaining_tags[0].name, "v2.0");
 }

@@ -9,8 +9,9 @@ pub use cli::{
 };
 pub use error::{ErrorKind, GitError};
 pub use ops::{
-    commit, discard, discard_all, last_commit_message, repo_has_commits, stage, stage_all, status,
-    unstage, unstage_all, CommitOptions,
+    checkout, checkout_detached, commit, create_branch, create_tag, delete_branch, delete_tag,
+    discard, discard_all, last_commit_message, list_refs, rename_branch, repo_has_commits,
+    set_upstream, stage, stage_all, status, unstage, unstage_all, CommitOptions, RefInfo, RefKind,
 };
 pub use parse::{
     parse_status_v2, BranchInfo, FileStatus, RepoStatus, StatusEntry, StatusEntryKind,
