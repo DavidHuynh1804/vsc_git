@@ -119,3 +119,45 @@ fn test_snapshot_shallow_parent_no_panic() {
     let ascii = render_ascii(&rows);
     insta::assert_snapshot!("shallow_parent_no_panic", ascii);
 }
+
+#[test]
+#[ignore = "200k commits benchmark"]
+fn test_benchmark_200k_commits_under_300ms() {
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+    use std::time::Instant;
+
+    let mut rng = StdRng::seed_from_u64(42);
+    let count = 200_000;
+    let mut commits = Vec::with_capacity(count);
+
+    for i in 0..count {
+        let sha = format!("sha_{:08x}", i);
+        let parents = if i == count - 1 {
+            Vec::new()
+        } else {
+            let p0 = format!("sha_{:08x}", i + 1);
+            let roll: f64 = rng.gen();
+            if roll < 0.15 && i + 2 < count {
+                let max_offset = 15.min(count - i);
+                let p1_offset = rng.gen_range(2..=max_offset.max(2));
+                let p1 = format!("sha_{:08x}", (i + p1_offset).min(count - 1));
+                vec![p0, p1]
+            } else {
+                vec![p0]
+            }
+        };
+        commits.push(CommitNode::new(sha, parents, vec![]));
+    }
+
+    let start = Instant::now();
+    let rows = layout(&commits);
+    let duration = start.elapsed();
+
+    assert_eq!(rows.len(), count);
+    assert!(
+        duration.as_millis() < 300,
+        "Took {}ms (target: < 300ms)",
+        duration.as_millis()
+    );
+}

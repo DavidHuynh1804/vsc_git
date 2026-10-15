@@ -10,3 +10,7 @@ serde = { version = "1", features = ["derive"] }
 [dev-dependencies]
 insta = { version = "1", features = ["yaml"] }
 rand = "0.8"
+
+[[bench]]
+name = "layout_bench"
+harness = false
