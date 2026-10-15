@@ -21,6 +21,7 @@ export interface M3DataSource {
   rebaseInteractive(base: string): Promise<string>;
   submitRebaseTodo(items: RebaseTodoEntry[]): Promise<void>;
   openInEditor(path: string, line?: number): Promise<void>;
+  getRebaseTodo?(): RebaseTodoEntry[];
   saveWorktreeFile(path: string, content: string): Promise<void>;
   onOperationChanged(cb: () => void): () => void;
 }
