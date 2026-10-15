@@ -37,15 +37,15 @@ export const FileHistoryView: React.FC<FileHistoryViewProps> = ({ filePath }) =>
     try {
       const list = await m3DataSource.fileHistory(filePath);
       setEntries(list);
-      if (list.length > 0 && !selectedSha) {
-        setSelectedSha(list[0].sha);
+      if (list.length > 0) {
+        setSelectedSha((prev) => prev ?? list[0].sha);
       }
     } catch (err) {
       console.error("Failed to load file history:", err);
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [filePath, m3DataSource, selectedSha]);
+  }, [filePath, m3DataSource]);
 
   useEffect(() => {
     void loadHistory();
