@@ -1,9 +1,9 @@
 use git_core::{
     apply_ranges, checkout, checkout_detached, commit, create_branch, create_tag, delete_branch,
-    delete_tag, discard, last_commit_message, list_refs, rename_branch, set_upstream, stage,
-    stage_all, stash_apply, stash_drop, stash_list, stash_pop, stash_push, stash_show, status,
-    unstage, unstage_all, ApplyMode, CommandOptions, CommitOptions, FileStatus, GitCli, GitOutput,
-    LineSelection, RefKind, StashPushOptions, StatusEntryKind,
+    delete_tag, discard, file_content, last_commit_message, list_refs, rename_branch, set_upstream,
+    stage, stage_all, stash_apply, stash_drop, stash_list, stash_pop, stash_push, stash_show,
+    status, unified_diff, unstage, unstage_all, ApplyMode, CommandOptions, CommitOptions, FileRev,
+    FileStatus, GitCli, GitOutput, LineSelection, RefKind, StashPushOptions, StatusEntryKind,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -419,4 +419,33 @@ fn test_integration_stash_push_pop_untracked() {
     assert_eq!(stash_list(&repo.cli, repo.path()).unwrap().len(), 1);
     stash_drop(&repo.cli, repo.path(), None).unwrap();
     assert!(stash_list(&repo.cli, repo.path()).unwrap().is_empty());
+}
+
+#[test]
+fn test_integration_file_content_and_diff() {
+    let repo = TestRepo::new();
+    repo.write_file("doc.txt", "v1 content\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+    commit(&repo.cli, repo.path(), CommitOptions::new("initial commit")).unwrap();
+
+    // Modify and stage
+    repo.write_file("doc.txt", "v2 staged\n");
+    stage_all(&repo.cli, repo.path()).unwrap();
+
+    // Modify in worktree again
+    repo.write_file("doc.txt", "v3 worktree\n");
+
+    let head_bytes = file_content(&repo.cli, repo.path(), "doc.txt", FileRev::Head).unwrap();
+    assert_eq!(head_bytes, b"v1 content\n");
+
+    let index_bytes = file_content(&repo.cli, repo.path(), "doc.txt", FileRev::Index).unwrap();
+    assert_eq!(index_bytes, b"v2 staged\n");
+
+    let staged_diff = unified_diff(&repo.cli, repo.path(), Some("doc.txt"), true, 0).unwrap();
+    assert!(staged_diff.contains("-v1 content"));
+    assert!(staged_diff.contains("+v2 staged"));
+
+    let unstaged_diff = unified_diff(&repo.cli, repo.path(), Some("doc.txt"), false, 0).unwrap();
+    assert!(unstaged_diff.contains("-v2 staged"));
+    assert!(unstaged_diff.contains("+v3 worktree"));
 }
