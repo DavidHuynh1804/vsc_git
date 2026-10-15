@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "io.github.davidhuynh1804.vscgit",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "pnpm sidecars && pnpm dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "pnpm sidecars:release && pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -27,5 +27,11 @@
   },
   "plugins": {
     "dialog": {}
+  },
+  "bundle": {
+    "externalBin": [
+      "binaries/vsc-git-askpass",
+      "binaries/vsc-git-sequence-editor"
+    ]
   }
 }

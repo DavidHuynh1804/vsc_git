@@ -8,18 +8,42 @@ use tauri::{AppHandle, Manager, Window};
 
 use crate::app::recent::add_recent_repo;
 use crate::error::{AppError, ErrorKind};
-use crate::git_exec::execute_git;
-
+use crate::git_exec::create_git_cli;
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 pub struct RepoInfo {
     pub root: String,
     pub head_branch: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RepoSession {
     pub root: PathBuf,
-    pub head_branch: String,
+    pub head_branch: std::sync::Arc<parking_lot::RwLock<String>>,
+    pub draft_message: std::sync::Arc<parking_lot::RwLock<String>>,
+    pub queue: crate::repo::queue::RepoWriteQueue,
+    pub graph: std::sync::Arc<parking_lot::Mutex<Option<git_read::GraphWalker>>>,
+    pub status_cache: std::sync::Arc<parking_lot::RwLock<Option<git_core::RepoStatus>>>,
+    pub refs_cache: std::sync::Arc<parking_lot::RwLock<Option<Vec<git_read::RefInfo>>>>,
+    pub operation_cache: std::sync::Arc<parking_lot::RwLock<Option<git_core::OperationState>>>,
+}
+
+impl RepoSession {
+    pub fn new(root: PathBuf, head_branch: String) -> Self {
+        Self {
+            root,
+            head_branch: std::sync::Arc::new(parking_lot::RwLock::new(head_branch)),
+            draft_message: std::sync::Arc::new(parking_lot::RwLock::new(String::new())),
+            queue: crate::repo::queue::RepoWriteQueue::new(),
+            graph: std::sync::Arc::new(parking_lot::Mutex::new(None)),
+            status_cache: std::sync::Arc::new(parking_lot::RwLock::new(None)),
+            refs_cache: std::sync::Arc::new(parking_lot::RwLock::new(None)),
+            operation_cache: std::sync::Arc::new(parking_lot::RwLock::new(None)),
+        }
+    }
+
+    pub fn session_for_window(state: &SessionState, window: &Window) -> Option<RepoSession> {
+        state.sessions.read().get(window.label()).cloned()
+    }
 }
 
 #[derive(Default)]
@@ -75,20 +99,10 @@ pub fn check_git_version_requirement(major: u32, minor: u32) -> Result<(), AppEr
 
 #[tauri::command]
 #[specta::specta]
-pub fn git_version(app: AppHandle) -> Result<String, AppError> {
-    let output = execute_git(None, &["--version"], Some(&app))?;
-    if !output.status.success() {
-        return Err(
-            AppError::new(ErrorKind::GitMissing, "Failed to run 'git --version'")
-                .with_stderr(String::from_utf8_lossy(&output.stderr)),
-        );
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let (major, minor, patch) = parse_git_version(&stdout)?;
-    check_git_version_requirement(major, minor)?;
-
-    Ok(format!("{major}.{minor}.{patch}"))
+pub fn git_version(_app: AppHandle) -> Result<String, AppError> {
+    let cli = create_git_cli();
+    let ver = cli.version()?;
+    Ok(format!("{}.{}.{}", ver.major, ver.minor, ver.patch))
 }
 
 #[tauri::command]
@@ -102,54 +116,48 @@ pub fn open_repo(app: AppHandle, window: Window, path: String) -> Result<RepoInf
         ));
     }
 
-    let output = execute_git(
-        Some(repo_path),
-        &["rev-parse", "--show-toplevel"],
-        Some(&app),
-    )?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        return Err(AppError::not_a_repo(&path).with_stderr(stderr));
-    }
+    let cli = create_git_cli();
+    // Verify Git presence and version >= 2.35
+    cli.version()?;
 
-    let root_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let output = cli.exec(
+        repo_path,
+        &["rev-parse", "--show-toplevel"],
+        git_core::CommandOptions::read_only(),
+    )?;
+
+    let root_str = output.stdout_lossy().trim().to_string();
     let root_path = PathBuf::from(&root_str);
     let canonical_root = root_path
         .canonicalize()
         .unwrap_or_else(|_| root_path.clone());
     let canonical_str = canonical_root.to_string_lossy().to_string();
 
-    let branch_output = execute_git(
-        Some(&canonical_root),
+    let branch_output = cli.exec(
+        &canonical_root,
         &["symbolic-ref", "--short", "HEAD"],
-        Some(&app),
-    )?;
+        git_core::CommandOptions::read_only(),
+    );
 
-    let head_branch = if branch_output.status.success() {
-        String::from_utf8_lossy(&branch_output.stdout)
-            .trim()
-            .to_string()
-    } else {
-        // Fallback to commit sha or rev-parse HEAD
-        let sha_output = execute_git(
-            Some(&canonical_root),
-            &["rev-parse", "--short", "HEAD"],
-            Some(&app),
-        )?;
-        if sha_output.status.success() {
-            format!(
-                "HEAD ({})",
-                String::from_utf8_lossy(&sha_output.stdout).trim()
-            )
-        } else {
-            "HEAD".to_string()
+    let head_branch = match branch_output {
+        Ok(out) => out.stdout_lossy().trim().to_string(),
+        Err(_) => {
+            let sha_output = cli.exec(
+                &canonical_root,
+                &["rev-parse", "--short", "HEAD"],
+                git_core::CommandOptions::read_only(),
+            );
+            match sha_output {
+                Ok(out) => format!("HEAD ({})", out.stdout_lossy().trim()),
+                Err(_) => "HEAD".to_string(),
+            }
         }
     };
 
-    let session = RepoSession {
-        root: canonical_root.clone(),
-        head_branch: head_branch.clone(),
-    };
+    // Start IPC server (askpass / sequence-editor) once per app session.
+    crate::repo::ipc::get_or_start_ipc(app.clone())?;
+
+    let session = RepoSession::new(canonical_root.clone(), head_branch.clone());
 
     if let Some(state) = app.try_state::<SessionState>() {
         state
@@ -180,7 +188,7 @@ pub fn get_current_repo(app: AppHandle, window: Window) -> Result<Option<RepoInf
         if let Some(session) = lock.get(window.label()) {
             return Ok(Some(RepoInfo {
                 root: session.root.to_string_lossy().to_string(),
-                head_branch: session.head_branch.clone(),
+                head_branch: session.head_branch.read().clone(),
             }));
         }
     }

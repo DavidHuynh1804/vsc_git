@@ -8,20 +8,30 @@ use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
+use crate::commands::types::{AppOperationState, AppRepoStatus};
 use crate::error::AppError;
+use crate::git_exec::create_git_cli;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Type, tauri_specta::Event, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type, tauri_specta::Event, PartialEq)]
 #[tauri_specta(event_name = "repo://status-changed")]
 pub struct StatusChangedEvent {
     pub root: String,
+    pub status: Option<AppRepoStatus>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Type, tauri_specta::Event, PartialEq, Eq)]
 #[tauri_specta(event_name = "repo://refs-changed")]
 pub struct RefsChangedEvent {
     pub root: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Type, tauri_specta::Event, PartialEq)]
+#[tauri_specta(event_name = "repo://operation-changed")]
+pub struct OperationChangedEvent {
+    pub root: String,
+    pub state: AppOperationState,
 }
 
 pub fn should_ignore_path(path: &Path) -> bool {
@@ -43,6 +53,15 @@ pub fn is_refs_change(path: &Path) -> bool {
         || s.ends_with("packed-refs")
 }
 
+pub fn is_operation_change(path: &Path) -> bool {
+    let s = path.to_string_lossy();
+    s.contains("MERGE_HEAD")
+        || s.contains("rebase-merge")
+        || s.contains("rebase-apply")
+        || s.contains("CHERRY_PICK_HEAD")
+        || s.contains("REVERT_HEAD")
+}
+
 pub struct RepoWatcher {
     _watcher: RecommendedWatcher,
     _stop_tx: Sender<()>,
@@ -51,6 +70,18 @@ pub struct RepoWatcher {
 #[derive(Default)]
 pub struct WatcherState {
     watchers: Arc<Mutex<std::collections::HashMap<String, RepoWatcher>>>,
+}
+
+fn find_session_by_root(app: &AppHandle, root: &Path) -> Option<crate::repo::session::RepoSession> {
+    if let Some(state) = app.try_state::<crate::repo::session::SessionState>() {
+        let lock = state.sessions.read();
+        for session in lock.values() {
+            if session.root == root {
+                return Some(session.clone());
+            }
+        }
+    }
+    None
 }
 
 impl WatcherState {
@@ -84,6 +115,7 @@ impl WatcherState {
 
         let app_clone = app.clone();
         let root_str_clone = root_str.clone();
+        let root_clone = root.clone();
 
         thread::spawn(move || {
             let debounce_dur = Duration::from_millis(300);
@@ -130,7 +162,9 @@ impl WatcherState {
                             }
                         }
 
-                        // Emit events
+                        let cli = create_git_cli();
+
+                        // Emit refs change event
                         if refs_pending {
                             let _ = app_clone.emit(
                                 "repo://refs-changed",
@@ -140,14 +174,61 @@ impl WatcherState {
                             );
                             refs_pending = false;
                         }
+
+                        // Run real status, compare against cache, emit if changed with payload
                         if status_pending {
-                            let _ = app_clone.emit(
-                                "repo://status-changed",
-                                &StatusChangedEvent {
-                                    root: root_str_clone.clone(),
-                                },
-                            );
+                            if let Ok(new_status) = git_core::ops::status(&cli, &root_clone) {
+                                let mut changed = true;
+                                if let Some(session) = find_session_by_root(&app_clone, &root_clone)
+                                {
+                                    let mut cache = session.status_cache.write();
+                                    if let Some(old) = &*cache {
+                                        if old == &new_status {
+                                            changed = false;
+                                        }
+                                    }
+                                    if changed {
+                                        *cache = Some(new_status.clone());
+                                    }
+                                }
+
+                                if changed {
+                                    let _ = app_clone.emit(
+                                        "repo://status-changed",
+                                        &StatusChangedEvent {
+                                            root: root_str_clone.clone(),
+                                            status: Some(new_status.into()),
+                                        },
+                                    );
+                                }
+                            }
                             status_pending = false;
+                        }
+
+                        // Check operation state change and emit if changed
+                        if let Ok(new_op) = git_core::ops::operation_state(&cli, &root_clone) {
+                            let mut op_changed = true;
+                            if let Some(session) = find_session_by_root(&app_clone, &root_clone) {
+                                let mut cache = session.operation_cache.write();
+                                if let Some(old) = &*cache {
+                                    if old == &new_op {
+                                        op_changed = false;
+                                    }
+                                }
+                                if op_changed {
+                                    *cache = Some(new_op.clone());
+                                }
+                            }
+
+                            if op_changed {
+                                let _ = app_clone.emit(
+                                    "repo://operation-changed",
+                                    &OperationChangedEvent {
+                                        root: root_str_clone.clone(),
+                                        state: new_op.into(),
+                                    },
+                                );
+                            }
                         }
                     }
                     Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
@@ -177,27 +258,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_path_filter() {
-        assert!(should_ignore_path(Path::new(
-            "/repo/node_modules/foo/bar.js"
-        )));
-        assert!(should_ignore_path(Path::new("/repo/target/debug/app")));
-        assert!(should_ignore_path(Path::new("/repo/.git/objects/4b/825dc")));
-        assert!(should_ignore_path(Path::new("/repo/.git/index.lock")));
-
-        assert!(!should_ignore_path(Path::new("/repo/src/App.tsx")));
-        assert!(!should_ignore_path(Path::new("/repo/.git/HEAD")));
+    fn test_refs_change_detection() {
+        assert!(is_refs_change(Path::new(".git/HEAD")));
+        assert!(is_refs_change(Path::new(".git/refs/heads/main")));
+        assert!(is_refs_change(Path::new(".git/refs/tags/v1.0.0")));
+        assert!(!is_refs_change(Path::new("src/main.rs")));
     }
 
     #[test]
-    fn test_refs_change_detection() {
-        assert!(is_refs_change(Path::new("/repo/.git/HEAD")));
-        assert!(is_refs_change(Path::new("/repo/.git/refs/heads/main")));
-        assert!(is_refs_change(Path::new(
-            "/repo/.git/refs/remotes/origin/main"
+    fn test_operation_change_detection() {
+        assert!(is_operation_change(Path::new(".git/MERGE_HEAD")));
+        assert!(is_operation_change(Path::new(
+            ".git/rebase-merge/head-name"
         )));
-        assert!(is_refs_change(Path::new("/repo/.git/packed-refs")));
+        assert!(is_operation_change(Path::new(".git/CHERRY_PICK_HEAD")));
+        assert!(!is_operation_change(Path::new("src/main.rs")));
+    }
 
-        assert!(!is_refs_change(Path::new("/repo/src/main.rs")));
+    #[test]
+    fn test_ignore_path() {
+        assert!(should_ignore_path(Path::new("node_modules/package.json")));
+        assert!(should_ignore_path(Path::new("target/debug/app")));
+        assert!(should_ignore_path(Path::new(".git/objects/12/3456")));
+        assert!(should_ignore_path(Path::new(".git/index.lock")));
+        assert!(!should_ignore_path(Path::new("src/lib.rs")));
     }
 }

@@ -1,6 +1,15 @@
-use crate::error::AppError;
+pub mod app;
+pub mod branch;
+pub mod graph;
+pub mod history;
+pub mod mod_helpers;
+pub mod status;
+pub mod types;
+
 use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
+
+use crate::error::AppError;
 
 #[tauri::command]
 #[specta::specta]

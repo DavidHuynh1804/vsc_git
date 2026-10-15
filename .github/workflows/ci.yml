@@ -55,6 +55,9 @@ jobs:
       - name: Frontend Tests
         run: pnpm test
 
+      - name: Build Sidecars
+        run: pnpm sidecars
+
       - name: Rust Format Check
         run: cargo fmt --check
 
