@@ -168,4 +168,10 @@ describe("InteractiveRebaseView Component", () => {
     fireEvent.click(cancelBtn);
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
+
+  it("invokes rebaseInteractive when mounted with baseSha", () => {
+    const rebaseSpy = vi.spyOn(mockDs, "rebaseInteractive");
+    render(<InteractiveRebaseView baseSha="feat/base-branch" />);
+    expect(rebaseSpy).toHaveBeenCalledWith("feat/base-branch");
+  });
 });

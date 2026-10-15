@@ -76,6 +76,11 @@ export const InteractiveRebaseView: React.FC<InteractiveRebaseViewProps> = ({
 
   useEffect(() => {
     if (!initialEntries || initialEntries.length === 0) {
+      if (baseSha) {
+        void m3DataSource.rebaseInteractive(baseSha).catch((err) => {
+          console.error("Failed to start interactive rebase:", err);
+        });
+      }
       if (m3DataSource.getRebaseTodo) {
         const mockItems = m3DataSource.getRebaseTodo();
         if (mockItems && mockItems.length > 0) {
@@ -83,7 +88,7 @@ export const InteractiveRebaseView: React.FC<InteractiveRebaseViewProps> = ({
         }
       }
     }
-  }, [initialEntries, m3DataSource]);
+  }, [baseSha, initialEntries, m3DataSource]);
 
   const validation = validateRebaseTodo(entries);
 
