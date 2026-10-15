@@ -4,7 +4,7 @@
 
 - Trạng thái: Draft — chờ review
 - Ngày: 2026-10-15
-- Tác giả: @davidHuynh59
+- Tác giả: @DavidHuynh1804
 
 ---
 
