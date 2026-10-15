@@ -11,8 +11,49 @@ pub enum ApplyMode {
     Revert,
 }
 
+/// The side of the diff being referenced for line numbers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Side {
+    Original,
+    Modified,
+}
+
+/// Inclusive line selection (1-based index) with side specification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct LineSelection {
+    pub side: Side,
+    pub start: u32,
+    pub end: u32,
+}
+
+impl LineSelection {
+    pub fn new(side: Side, start: u32, end: u32) -> Self {
+        Self { side, start, end }
+    }
+
+    pub fn original(start: u32, end: u32) -> Self {
+        Self {
+            side: Side::Original,
+            start,
+            end,
+        }
+    }
+
+    pub fn modified(start: u32, end: u32) -> Self {
+        Self {
+            side: Side::Modified,
+            start,
+            end,
+        }
+    }
+
+    pub fn contains(&self, side: Side, line: u32) -> bool {
+        self.side == side && self.start <= line && line <= self.end
+    }
+}
+
 /// Inclusive line range (1-based index) in file coordinates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct LineRange {
     pub start: u32,
     pub end: u32,
@@ -23,9 +64,87 @@ impl LineRange {
         Self { start, end }
     }
 
-    pub fn contains(&self, line: u32) -> bool {
-        self.start <= line && line <= self.end
+    pub fn on_side(self, side: Side) -> LineSelection {
+        LineSelection::new(side, self.start, self.end)
     }
+}
+
+/// Returns line selections covering all modifications in the specified hunk (0-indexed).
+pub fn hunk_selections(diff_content: &str, hunk_index: usize) -> Vec<LineSelection> {
+    let mut hunks = Vec::new();
+    let mut current_hunk: Option<Vec<&str>> = None;
+
+    let mut raw_lines: Vec<&str> = diff_content.split('\n').collect();
+    if raw_lines.last() == Some(&"") {
+        raw_lines.pop();
+    }
+
+    for line in raw_lines {
+        if line.starts_with("@@") {
+            if let Some(h) = current_hunk.take() {
+                hunks.push(h);
+            }
+            current_hunk = Some(vec![line]);
+        } else if let Some(h) = &mut current_hunk {
+            h.push(line);
+        }
+    }
+    if let Some(h) = current_hunk {
+        hunks.push(h);
+    }
+
+    let Some(raw_hunk) = hunks.get(hunk_index) else {
+        return Vec::new();
+    };
+    if raw_hunk.is_empty() {
+        return Vec::new();
+    }
+
+    let Some((old_start, _old_count, new_start, _new_count, _)) = parse_hunk_header(raw_hunk[0])
+    else {
+        return Vec::new();
+    };
+
+    let mut curr_old = old_start;
+    let mut curr_new = new_start;
+
+    let mut min_del: Option<u32> = None;
+    let mut max_del: Option<u32> = None;
+    let mut min_add: Option<u32> = None;
+    let mut max_add: Option<u32> = None;
+
+    for l in &raw_hunk[1..] {
+        if l.starts_with(r"\ No newline") {
+            continue;
+        }
+        let first_char = l.chars().next().unwrap_or(' ');
+        match first_char {
+            '-' => {
+                min_del = Some(min_del.map_or(curr_old, |m| m.min(curr_old)));
+                max_del = Some(max_del.map_or(curr_old, |m| m.max(curr_old)));
+                curr_old += 1;
+            }
+            '+' => {
+                min_add = Some(min_add.map_or(curr_new, |m| m.min(curr_new)));
+                max_add = Some(max_add.map_or(curr_new, |m| m.max(curr_new)));
+                curr_new += 1;
+            }
+            ' ' => {
+                curr_old += 1;
+                curr_new += 1;
+            }
+            _ => {}
+        }
+    }
+
+    let mut selections = Vec::new();
+    if let (Some(start), Some(end)) = (min_del, max_del) {
+        selections.push(LineSelection::original(start, end));
+    }
+    if let (Some(start), Some(end)) = (min_add, max_add) {
+        selections.push(LineSelection::modified(start, end));
+    }
+    selections
 }
 
 #[derive(Debug, Clone)]
@@ -44,7 +163,7 @@ fn parse_hunk_header(line: &str) -> Option<(u32, u32, u32, u32, String)> {
     let rest = trimmed[2..].trim_start();
     let end_idx = rest.find("@@")?;
     let ranges_part = rest[..end_idx].trim();
-    let suffix = rest[end_idx + 2..].to_string();
+    let suffix = rest[end_idx + 2..].trim_end_matches('\r').to_string();
 
     let mut parts = ranges_part.split_whitespace();
     let old_part = parts.next()?.strip_prefix('-')?;
@@ -69,8 +188,8 @@ fn parse_coord(s: &str) -> Option<(u32, u32)> {
 /// Preserves CRLF line endings, handles `\ No newline at end of file`,
 /// converts unselected deletions into context lines, drops unselected additions,
 /// and recalculates hunk headers with cumulative line offsets.
-pub fn build_range_patch(diff_content: &str, ranges: &[LineRange]) -> Option<String> {
-    if diff_content.is_empty() || ranges.is_empty() {
+pub fn build_range_patch(diff_content: &str, selections: &[LineSelection]) -> Option<String> {
+    if diff_content.is_empty() || selections.is_empty() {
         return None;
     }
 
@@ -78,7 +197,11 @@ pub fn build_range_patch(diff_content: &str, ranges: &[LineRange]) -> Option<Str
     let mut hunks_raw = Vec::new();
 
     let mut current_hunk: Option<Vec<String>> = None;
-    for line in diff_content.lines() {
+    let mut raw_lines: Vec<&str> = diff_content.split('\n').collect();
+    if raw_lines.last() == Some(&"") {
+        raw_lines.pop();
+    }
+    for line in raw_lines {
         if line.starts_with("@@") {
             if let Some(hunk) = current_hunk.take() {
                 hunks_raw.push(hunk);
@@ -130,8 +253,6 @@ pub fn build_range_patch(diff_content: &str, ranges: &[LineRange]) -> Option<Str
             }
         }
 
-        let total_plus = parsed_lines.iter().filter(|l| l.line_type == '+').count() as u32;
-
         let mut curr_plus: u32 = 0;
         let mut curr_minus: u32 = 0;
 
@@ -145,7 +266,9 @@ pub fn build_range_patch(diff_content: &str, ranges: &[LineRange]) -> Option<Str
                 '+' => {
                     let new_line_no = new_start + curr_plus;
                     curr_plus += 1;
-                    let is_selected = ranges.iter().any(|r| r.contains(new_line_no));
+                    let is_selected = selections
+                        .iter()
+                        .any(|s| s.contains(Side::Modified, new_line_no));
                     if is_selected {
                         new_lines.push(line.raw.clone());
                         if line.no_newline {
@@ -157,22 +280,11 @@ pub fn build_range_patch(diff_content: &str, ranges: &[LineRange]) -> Option<Str
                 }
                 '-' => {
                     let old_line_no = old_start + curr_minus;
-                    let right_coord = if total_plus > 0 {
-                        if curr_minus < total_plus {
-                            new_start + curr_minus
-                        } else {
-                            new_start + total_plus - 1
-                        }
-                    } else if new_start == 0 {
-                        1
-                    } else {
-                        new_start
-                    };
                     curr_minus += 1;
 
-                    let is_selected = ranges
+                    let is_selected = selections
                         .iter()
-                        .any(|r| r.contains(old_line_no) || r.contains(right_coord));
+                        .any(|s| s.contains(Side::Original, old_line_no));
 
                     if is_selected {
                         new_lines.push(line.raw.clone());
@@ -258,10 +370,10 @@ pub fn apply_ranges<P: AsRef<Path>>(
     cli: &GitCli,
     repo_path: &Path,
     path: P,
-    ranges: &[LineRange],
+    selections: &[LineSelection],
     mode: ApplyMode,
 ) -> Result<(), GitError> {
-    if ranges.is_empty() {
+    if selections.is_empty() {
         return Ok(());
     }
 
@@ -309,7 +421,7 @@ pub fn apply_ranges<P: AsRef<Path>>(
     }
 
     // 2. Build filtered patch for selected ranges
-    let Some(patch) = build_range_patch(&diff_output, ranges) else {
+    let Some(patch) = build_range_patch(&diff_output, selections) else {
         return Ok(());
     };
 
@@ -356,7 +468,7 @@ mod tests {
 +line3
 "#;
         // Select only line 2 (line2)
-        let patch = build_range_patch(diff, &[LineRange::new(2, 2)]).unwrap();
+        let patch = build_range_patch(diff, &[LineSelection::modified(2, 2)]).unwrap();
         assert!(patch.contains("+line2"));
         assert!(!patch.contains("+line3"));
         assert!(patch.contains("@@ -1,0 +2,1 @@"));
@@ -372,7 +484,7 @@ mod tests {
 -del2
 "#;
         // Select only deletion of del1 (line 2 in old file)
-        let patch = build_range_patch(diff, &[LineRange::new(2, 2)]).unwrap();
+        let patch = build_range_patch(diff, &[LineSelection::original(2, 2)]).unwrap();
         assert!(patch.contains("-del1"));
         assert!(patch.contains(" del2")); // del2 turned to context
         assert!(patch.contains("@@ -2,2 +2,1 @@"));
@@ -391,8 +503,8 @@ mod tests {
 -old4
 +new4
 "#;
-        // Select only hunk 2 (line 5 in new file coordinates)
-        let patch = build_range_patch(diff, &[LineRange::new(5, 5)]).unwrap();
+        // Select only hunk 2 (using hunk_selections)
+        let patch = build_range_patch(diff, &hunk_selections(diff, 1)).unwrap();
         assert!(!patch.contains("new2_a"));
         assert!(patch.contains("-old4"));
         assert!(patch.contains("+new4"));
@@ -403,15 +515,19 @@ mod tests {
     #[test]
     fn test_patch_crlf_preservation() {
         let diff = "diff --git a/file.txt b/file.txt\r\n--- a/file.txt\r\n+++ b/file.txt\r\n@@ -1,0 +2,1 @@\r\n+crlf_line\r\n";
-        let patch = build_range_patch(diff, &[LineRange::new(2, 2)]).unwrap();
-        assert!(patch.contains("+crlf_line"));
+        let patch = build_range_patch(diff, &[LineSelection::modified(2, 2)]).unwrap();
+        assert!(patch.contains("+crlf_line\r\n"));
     }
 
     #[test]
     fn test_patch_no_newline_at_eof() {
         let diff = "diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1,1 +1,2 @@\n-old_eof\n\\ No newline at end of file\n+new_eof\n\\ No newline at end of file\n+extra\n";
         // Select only new_eof (line 1)
-        let patch = build_range_patch(diff, &[LineRange::new(1, 1)]).unwrap();
+        let patch = build_range_patch(
+            diff,
+            &[LineSelection::original(1, 1), LineSelection::modified(1, 1)],
+        )
+        .unwrap();
         assert!(patch.contains("-old_eof"));
         assert!(patch.contains("+new_eof"));
         assert!(patch.contains("\\ No newline at end of file"));
@@ -430,7 +546,11 @@ mod tests {
 +mod2_new
 "#;
         // Select only mod2_new (line 6 in new file)
-        let patch = build_range_patch(diff, &[LineRange::new(6, 6)]).unwrap();
+        let patch = build_range_patch(
+            diff,
+            &[LineSelection::original(6, 6), LineSelection::modified(6, 6)],
+        )
+        .unwrap();
         // mod1_old should become context
         assert!(patch.contains(" mod1_old"));
         // mod1_new dropped
@@ -439,5 +559,62 @@ mod tests {
         assert!(patch.contains("-mod2_old"));
         // mod2_new added
         assert!(patch.contains("+mod2_new"));
+    }
+
+    #[test]
+    fn test_patch_side_selection_cross_hunk_separation() {
+        let diff = r#"diff --git a/file.txt b/file.txt
+--- a/file.txt
++++ b/file.txt
+@@ -50,1 +40,0 @@
+-deleted_old_50
+@@ -60,0 +50,1 @@
++added_new_50
+"#;
+        // Select only new line 50 on Modified side
+        let patch = build_range_patch(diff, &[LineSelection::modified(50, 50)]).unwrap();
+        assert!(patch.contains("+added_new_50"));
+        assert!(!patch.contains("-deleted_old_50"));
+
+        // Select only old line 50 on Original side
+        let patch2 = build_range_patch(diff, &[LineSelection::original(50, 50)]).unwrap();
+        assert!(patch2.contains("-deleted_old_50"));
+        assert!(!patch2.contains("+added_new_50"));
+    }
+
+    #[test]
+    fn test_hunk_selections_utility() {
+        let diff = r#"diff --git a/file.txt b/file.txt
+--- a/file.txt
++++ b/file.txt
+@@ -2,1 +2,2 @@
+-old2
++new2_a
++new2_b
+@@ -4,1 +5,1 @@
+-old4
++new4
+"#;
+        let sel0 = hunk_selections(diff, 0);
+        assert_eq!(
+            sel0,
+            vec![LineSelection::original(2, 2), LineSelection::modified(2, 3),]
+        );
+
+        let patch0 = build_range_patch(diff, &sel0).unwrap();
+        assert!(patch0.contains("-old2"));
+        assert!(patch0.contains("+new2_a"));
+        assert!(patch0.contains("+new2_b"));
+        assert!(!patch0.contains("new4"));
+
+        let sel1 = hunk_selections(diff, 1);
+        assert_eq!(
+            sel1,
+            vec![LineSelection::original(4, 4), LineSelection::modified(5, 5),]
+        );
+        let patch1 = build_range_patch(diff, &sel1).unwrap();
+        assert!(!patch1.contains("new2_a"));
+        assert!(patch1.contains("-old4"));
+        assert!(patch1.contains("+new4"));
     }
 }

@@ -121,6 +121,12 @@ mod tests {
             .unwrap();
         cli.exec(
             dir.path(),
+            &["config", "core.autocrlf", "false"],
+            CommandOptions::default(),
+        )
+        .unwrap();
+        cli.exec(
+            dir.path(),
             &["config", "user.email", "test@test.com"],
             CommandOptions::default(),
         )
