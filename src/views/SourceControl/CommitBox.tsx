@@ -44,6 +44,13 @@ export const CommitBox: React.FC = () => {
 
   const menuRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Load draft on mount
   useEffect(() => {
@@ -148,11 +155,14 @@ export const CommitBox: React.FC = () => {
 
     try {
       await dataSource.aiGenerateCommit((chunk) => {
+        if (!isMountedRef.current) return;
         setMessage(chunk);
         setDraftCommitMessage(chunk);
       });
     } finally {
-      setIsAiStreaming(false);
+      if (isMountedRef.current) {
+        setIsAiStreaming(false);
+      }
     }
   };
 
