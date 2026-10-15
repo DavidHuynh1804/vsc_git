@@ -23,8 +23,7 @@ jobs:
           node-version: 22
 
       - name: Run supply-chain unit tests
-        run: node --test scripts/check-crate-age.test.mjs
-
+        run: node --test scripts/check-crate-age-test.mjs
       - name: Check Rust crate release age
         env:
           BASE_REF: ${{ github.base_ref }}
