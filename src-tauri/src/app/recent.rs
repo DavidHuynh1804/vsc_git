@@ -10,11 +10,11 @@ use crate::error::AppError;
 
 pub const MAX_RECENT_REPOS: usize = 20;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 pub struct RecentRepo {
     pub path: String,
     pub name: String,
-    pub last_opened: i64,
+    pub last_opened: f64,
 }
 
 pub fn get_recent_path(config_dir: &Path) -> PathBuf {
@@ -54,7 +54,7 @@ pub fn add_recent_repo(config_dir: &Path, repo_path: &str) -> Result<Vec<RecentR
         .map(|f| f.to_string_lossy().to_string())
         .unwrap_or_else(|| canonical.clone());
 
-    let now = Utc::now().timestamp();
+    let now = Utc::now().timestamp() as f64;
 
     list.retain(|r| r.path != canonical);
     list.insert(

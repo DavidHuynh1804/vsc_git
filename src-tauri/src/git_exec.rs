@@ -15,14 +15,14 @@ use crate::error::{AppError, ErrorKind};
 pub const MAX_RING_BUFFER_ENTRIES: usize = 5000;
 static NEXT_OUTPUT_ID: AtomicU64 = AtomicU64::new(1);
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 pub struct GitOutputEntry {
-    pub id: u64,
-    pub timestamp: i64,
+    pub id: u32,
+    pub timestamp: f64,
     pub cmd: String,
     pub cwd: String,
     pub exit_code: i32,
-    pub duration_ms: u64,
+    pub duration_ms: u32,
     pub stdout: String,
     pub stderr: String,
 }
@@ -110,12 +110,12 @@ pub fn execute_git(
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
     let entry = GitOutputEntry {
-        id: NEXT_OUTPUT_ID.fetch_add(1, Ordering::SeqCst),
-        timestamp: Utc::now().timestamp_millis(),
+        id: NEXT_OUTPUT_ID.fetch_add(1, Ordering::SeqCst) as u32,
+        timestamp: Utc::now().timestamp_millis() as f64,
         cmd: cmd_str,
         cwd: cwd_str,
         exit_code,
-        duration_ms,
+        duration_ms: duration_ms as u32,
         stdout,
         stderr,
     };
@@ -154,7 +154,7 @@ mod tests {
 
         buf.push(GitOutputEntry {
             id: 1,
-            timestamp: 100,
+            timestamp: 100.0,
             cmd: "git status".to_string(),
             cwd: "/".to_string(),
             exit_code: 0,

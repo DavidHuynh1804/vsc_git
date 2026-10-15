@@ -18,7 +18,7 @@ pub const MAX_LOG_AGE_DAYS: u64 = 7;
 #[derive(Debug, Clone, specta::Type, serde::Serialize, serde::Deserialize)]
 pub struct ExportedLogs {
     pub path: String,
-    pub line_count: usize,
+    pub line_count: u32,
 }
 
 pub fn prune_old_logs(log_dir: &Path, max_age_days: u64) -> Result<usize, AppError> {
@@ -139,7 +139,7 @@ pub fn export_logs_from_dir(log_dir: &Path) -> Result<ExportedLogs, AppError> {
 
     Ok(ExportedLogs {
         path: export_path.to_string_lossy().to_string(),
-        line_count: total_lines,
+        line_count: total_lines as u32,
     })
 }
 

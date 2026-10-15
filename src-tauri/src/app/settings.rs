@@ -24,7 +24,7 @@ pub struct Settings {
     pub git_auto_fetch: bool,
 
     #[serde(rename = "git.autoFetchPeriodSec", default = "default_180")]
-    pub git_auto_fetch_period_sec: u64,
+    pub git_auto_fetch_period_sec: u32,
 
     #[serde(rename = "git.confirmSync", default = "default_true")]
     pub git_confirm_sync: bool,
@@ -63,7 +63,7 @@ pub struct Settings {
     pub graph_date_format: String,
 
     #[serde(rename = "graph.pageSize", default = "default_500")]
-    pub graph_page_size: usize,
+    pub graph_page_size: u32,
 
     #[serde(rename = "externalEditor.command", default = "default_code")]
     pub external_editor_command: String,
@@ -87,7 +87,7 @@ pub struct Settings {
     pub ai_language: String,
 
     #[serde(rename = "ai.maxDiffTokens", default = "default_20000")]
-    pub ai_max_diff_tokens: usize,
+    pub ai_max_diff_tokens: u32,
 
     #[serde(rename = "ai.excludeGlobs", default = "default_exclude_globs")]
     pub ai_exclude_globs: Vec<String>,
@@ -111,13 +111,13 @@ fn default_true() -> bool {
 fn default_false() -> bool {
     false
 }
-fn default_180() -> u64 {
+fn default_180() -> u32 {
     180
 }
-fn default_500() -> usize {
+fn default_500() -> u32 {
     500
 }
-fn default_20000() -> usize {
+fn default_20000() -> u32 {
     20000
 }
 fn default_ask() -> String {
@@ -272,21 +272,20 @@ pub fn get_settings(app: AppHandle) -> Result<Settings, AppError> {
 
 #[tauri::command]
 #[specta::specta]
-pub fn set_settings(app: AppHandle, patch: serde_json::Value) -> Result<Settings, AppError> {
+pub fn set_settings(app: AppHandle, patch_json: String) -> Result<Settings, AppError> {
     let config_dir = app
         .path()
         .app_config_dir()
         .map_err(|e| AppError::internal(e.to_string()))?;
     let current = load_settings_from_dir(&config_dir)?;
-    let updated = patch_settings_value(&current, &patch)?;
+    let patch_val: serde_json::Value = serde_json::from_str(&patch_json)?;
+    let updated = patch_settings_value(&current, &patch_val)?;
     save_settings_to_dir(&config_dir, &updated)?;
     Ok(updated)
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_settings_default_and_roundtrip() {
         let dir =

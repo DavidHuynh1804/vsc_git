@@ -162,6 +162,10 @@ pub fn open_repo(app: AppHandle, window: Window, path: String) -> Result<RepoInf
         let _ = add_recent_repo(&config_dir, &canonical_str);
     }
 
+    if let Some(watcher_state) = app.try_state::<crate::repo::watcher::WatcherState>() {
+        let _ = watcher_state.start_watching(app.clone(), canonical_root.clone());
+    }
+
     Ok(RepoInfo {
         root: canonical_str,
         head_branch,
