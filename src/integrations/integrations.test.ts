@@ -191,7 +191,39 @@ describe("Integrations and Scope Checking", () => {
     });
 
     it("creates pull request and checks branch pushed", async () => {
-      mockIPC((cmd, args) => {
+      const eventListeners = new Map<string, number[]>();
+      let nextId = 1;
+
+      mockIPC(async (cmd, args) => {
+        if (cmd === "plugin:event|listen") {
+          if (args && typeof args === "object" && "event" in args && "handler" in args) {
+            const ev = String(args.event);
+            const hid = Number(args.handler);
+            const list = eventListeners.get(ev) ?? [];
+            list.push(hid);
+            eventListeners.set(ev, list);
+          }
+          return nextId++;
+        }
+        if (cmd === "plugin:event|emit") {
+          if (args && typeof args === "object" && "event" in args && "payload" in args) {
+            const ev = String(args.event);
+            const list = eventListeners.get(ev) ?? [];
+            const win = window as unknown as {
+              __TAURI_INTERNALS__?: {
+                runCallback: (id: number, data: unknown) => void;
+              };
+            };
+            for (const hid of list) {
+              win.__TAURI_INTERNALS__?.runCallback(hid, {
+                event: ev,
+                id: hid,
+                payload: args.payload,
+              });
+            }
+          }
+          return null;
+        }
         if (cmd === "create_pull_request") {
           let title = "feat: add feature";
           if (args && typeof args === "object" && "req" in args) {
@@ -221,7 +253,15 @@ describe("Integrations and Scope Checking", () => {
           return true;
         }
         if (cmd === "push") {
-          return "push-job-1";
+          const jobId = "push-job-1";
+          Promise.resolve().then(async () => {
+            await events.jobDone.emit({
+              id: jobId,
+              success: true,
+              error: null,
+            });
+          });
+          return jobId;
         }
       });
 
@@ -242,6 +282,59 @@ describe("Integrations and Scope Checking", () => {
       expect(pr.title).toBe("feat: add feature");
 
       await expect(ds.pushBranch("feature")).resolves.not.toThrow();
+    });
+
+    it("pushBranch awaits jobDone and rejects if push fails", async () => {
+      const eventListeners = new Map<string, number[]>();
+      let nextId = 1;
+
+      mockIPC(async (cmd, args) => {
+        if (cmd === "plugin:event|listen") {
+          if (args && typeof args === "object" && "event" in args && "handler" in args) {
+            const ev = String(args.event);
+            const hid = Number(args.handler);
+            const list = eventListeners.get(ev) ?? [];
+            list.push(hid);
+            eventListeners.set(ev, list);
+          }
+          return nextId++;
+        }
+        if (cmd === "plugin:event|emit") {
+          if (args && typeof args === "object" && "event" in args && "payload" in args) {
+            const ev = String(args.event);
+            const list = eventListeners.get(ev) ?? [];
+            const win = window as unknown as {
+              __TAURI_INTERNALS__?: {
+                runCallback: (id: number, data: unknown) => void;
+              };
+            };
+            for (const hid of list) {
+              win.__TAURI_INTERNALS__?.runCallback(hid, {
+                event: ev,
+                id: hid,
+                payload: args.payload,
+              });
+            }
+          }
+          return null;
+        }
+        if (cmd === "push") {
+          const jobId = "failed-push-job-77";
+          Promise.resolve().then(async () => {
+            await events.jobDone.emit({
+              id: jobId,
+              success: false,
+              error: "Remote rejected push: non-fast-forward",
+            });
+          });
+          return jobId;
+        }
+      });
+
+      const ds = new TauriHostingDataSource();
+      await expect(ds.pushBranch("feature")).rejects.toThrow(
+        "Remote rejected push: non-fast-forward"
+      );
     });
   });
 

@@ -1,4 +1,4 @@
-import { commands, HostConfig } from "@/bindings";
+import { commands, events, HostConfig } from "@/bindings";
 import {
   CurrentUser,
   CreatePrRequest,
@@ -146,6 +146,34 @@ export class TauriHostingDataSource implements HostingDataSource {
   }
 
   async pushBranch(branch: string): Promise<void> {
+    let targetJobId: string | null = null;
+    const bufferedDone = new Map<string, { success: boolean; error: string | null }>();
+    const { promise, resolve, reject } = Promise.withResolvers<void>();
+
+    let unlisten: () => void = () => {};
+
+    const handleDone = (done: { success: boolean; error: string | null }) => {
+      unlisten();
+      if (done.success) {
+        resolve();
+      } else {
+        reject(new Error(done.error ?? `Failed to push branch ${branch}`));
+      }
+    };
+
+    unlisten = await events.jobDone.listen((e) => {
+      if (targetJobId !== null) {
+        if (e.payload.id === targetJobId) {
+          handleDone({ success: e.payload.success, error: e.payload.error });
+        }
+      } else {
+        bufferedDone.set(e.payload.id, {
+          success: e.payload.success,
+          error: e.payload.error,
+        });
+      }
+    });
+
     const res = await commands.push({
       remote: null,
       branch,
@@ -153,9 +181,19 @@ export class TauriHostingDataSource implements HostingDataSource {
       force_with_lease: false,
       tags: false,
     });
+
     if (res.status === "error") {
+      unlisten();
       throw new Error(res.error.message);
     }
+
+    targetJobId = res.data;
+    const done = bufferedDone.get(targetJobId);
+    if (done) {
+      handleDone(done);
+    }
+
+    return promise;
   }
 }
 
