@@ -7,8 +7,8 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 use tempfile::tempdir;
 use vsc_ipc::{
-    create_listener, git_editor_command, handle_connection, IpcRequestKind, IpcResponse,
-    ENV_IPC_ADDR, ENV_IPC_TOKEN,
+    create_listener, generate_token, git_editor_command, handle_connection, new_session_addr,
+    IpcRequestKind, IpcResponse, ENV_IPC_ADDR, ENV_IPC_TOKEN,
 };
 
 /// Waits for the IPC server thread, failing instead of hanging if the editor never connected.
@@ -58,10 +58,8 @@ fn test_git_rebase_interactive_with_sequence_editor() {
     fs::write(&f3, "file 3 content\n").unwrap();
     run_git(repo_path, &["add", "."]);
     run_git(repo_path, &["commit", "-m", "commit 3 to keep"]);
-    let sock_dir = tempdir().unwrap();
-    let sock = sock_dir.path().join("rebase.sock");
-    let addr = sock.to_str().unwrap().to_string();
-    let token = "rebase-token-xyz".to_string();
+    let addr = new_session_addr();
+    let token = generate_token();
 
     let listener = create_listener(&addr).unwrap();
     let token_clone = token.clone();
@@ -126,9 +124,8 @@ fn test_git_rebase_interactive_with_sequence_editor() {
 #[test]
 fn test_sequence_editor_commit_editmsg() {
     let dir = tempdir().unwrap();
-    let sock = dir.path().join("commit_msg.sock");
-    let addr = sock.to_str().unwrap().to_string();
-    let token = "msg-token".to_string();
+    let addr = new_session_addr();
+    let token = generate_token();
 
     let listener = create_listener(&addr).unwrap();
     let token_clone = token.clone();
@@ -180,10 +177,8 @@ fn test_git_rebase_cancelled_by_user() {
     fs::write(&f, "commit 2\n").unwrap();
     run_git(repo_path, &["commit", "-am", "commit 2"]);
 
-    let sock_dir = tempdir().unwrap();
-    let sock = sock_dir.path().join("cancel.sock");
-    let addr = sock.to_str().unwrap().to_string();
-    let token = "cancel-token".to_string();
+    let addr = new_session_addr();
+    let token = generate_token();
 
     let listener = create_listener(&addr).unwrap();
     let token_clone = token.clone();

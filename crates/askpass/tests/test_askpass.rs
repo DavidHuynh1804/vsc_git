@@ -1,17 +1,14 @@
 use std::process::Command;
-use tempfile::tempdir;
 use vsc_ipc::{
-    create_listener, handle_connection, IpcRequestKind, IpcResponse, ENV_IPC_ADDR, ENV_IPC_TOKEN,
+    create_listener, generate_token, handle_connection, new_session_addr, IpcRequestKind,
+    IpcResponse, ENV_IPC_ADDR, ENV_IPC_TOKEN,
 };
 
 #[test]
 fn test_askpass_binary_success_and_cancel() {
-    let dir = tempdir().unwrap();
-    let sock = dir.path().join("askpass.sock");
-    let addr = sock.to_str().unwrap().to_string();
-    let token = "test-token-12345".to_string();
-
     let bin_path = env!("CARGO_BIN_EXE_vsc-git-askpass");
+    let token = generate_token();
+    let addr = new_session_addr();
 
     // 1. Success case
     {
@@ -46,8 +43,10 @@ fn test_askpass_binary_success_and_cancel() {
 
     // 2. User cancel case -> exit 1
     {
-        let listener = create_listener(&addr).unwrap();
-        let token_clone = token.clone();
+        let addr2 = new_session_addr();
+        let token2 = generate_token();
+        let listener = create_listener(&addr2).unwrap();
+        let token_clone = token2.clone();
         let handle = std::thread::spawn(move || {
             let conn = listener.accept().unwrap();
             handle_connection(conn, &token_clone, |_| IpcResponse::cancel()).unwrap();
@@ -55,8 +54,8 @@ fn test_askpass_binary_success_and_cancel() {
 
         let output = Command::new(bin_path)
             .arg("Password for repo:")
-            .env(ENV_IPC_ADDR, &addr)
-            .env(ENV_IPC_TOKEN, &token)
+            .env(ENV_IPC_ADDR, &addr2)
+            .env(ENV_IPC_TOKEN, &token2)
             .output()
             .expect("Failed to execute askpass");
 

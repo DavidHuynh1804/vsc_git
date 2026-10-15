@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Search, FolderOpen, Terminal, Settings, Sun, Moon, RefreshCw, FileText } from "lucide-react";
+import { Search, FolderOpen, Terminal, Settings, Sun, Moon, RefreshCw, FileText, GitPullRequest, GitGraph, GitMerge, Layers } from "lucide-react";
 import { useUIStore } from "@/stores/ui";
 import { useRepoStore } from "@/stores/repo";
+import { useScmStore } from "@/scm/scmStore";
 import { commands } from "@/bindings";
 
 export interface PaletteCommand {
@@ -30,9 +31,11 @@ export const CommandPalette: React.FC = () => {
     theme,
     setTheme,
     openTab,
+    setCreatePrOpen,
   } = useUIStore();
   const { setRepo, setLoading, setError } = useRepoStore();
 
+  const { status: scmStatus, stageAll, unstageAll, sync, fetch, pull, push, refreshStatus } = useScmStore();
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -72,10 +75,68 @@ export const CommandPalette: React.FC = () => {
         action: () => toggleGitOutput(),
       },
       {
+        id: "git-commit",
+        category: "Git",
+        title: "Commit",
+        action: () => setActiveActivity("changes"),
+      },
+      {
+        id: "git-stage-all",
+        category: "Git",
+        title: "Stage All Changes",
+        action: () => stageAll(),
+      },
+      {
+        id: "git-unstage-all",
+        category: "Git",
+        title: "Unstage All Changes",
+        action: () => unstageAll(),
+      },
+      {
+        id: "git-sync",
+        category: "Git",
+        title: "Sync (Pull & Push)",
+        action: () => sync(),
+      },
+      {
+        id: "git-fetch",
+        category: "Git",
+        title: "Fetch",
+        action: () => fetch(),
+      },
+      {
+        id: "git-pull",
+        category: "Git",
+        title: "Pull",
+        action: () => pull(),
+      },
+      {
+        id: "git-push",
+        category: "Git",
+        title: "Push",
+        action: () => push(),
+      },
+      {
+        id: "git-refresh",
+        category: "Git",
+        title: "Refresh Status",
+        action: () => refreshStatus(),
+      },
+      {
         id: "view-changes",
         category: "View",
         title: "Show Source Control",
         action: () => setActiveActivity("changes"),
+      },
+      {
+        id: "open-graph",
+        category: "Git",
+        title: "Open Graph",
+        icon: GitGraph,
+        action: () => {
+          setActiveActivity("graph");
+          openTab({ id: "graph", title: "Git Graph", closable: true });
+        },
       },
       {
         id: "view-graph",
@@ -99,11 +160,42 @@ export const CommandPalette: React.FC = () => {
         action: () => setActiveActivity("stashes"),
       },
       {
+        id: "git-interactive-rebase",
+        category: "Git",
+        title: "Interactive Rebase...",
+        icon: Layers,
+        action: () => {
+          openTab({ id: "rebase-interactive", title: "Interactive Rebase", closable: true });
+        },
+      },
+      {
+        id: "git-open-merge-editor",
+        category: "Git",
+        title: "Open Merge Conflict Editor",
+        icon: GitMerge,
+        action: () => {
+          const unmerged = scmStatus?.entries.find((e) => e.kind.type === "Unmerged");
+          const targetPath = unmerged ? unmerged.path : "src/App.tsx";
+          const fileName = targetPath.split("/").pop() ?? targetPath;
+          openTab({ id: `merge-${targetPath}`, title: `Merge: ${fileName}`, closable: true });
+        },
+      },
+      {
         id: "view-settings",
         category: "Preferences",
         title: "Open Settings",
         icon: Settings,
-        action: () => setActiveActivity("settings"),
+        action: () => {
+          setActiveActivity("settings");
+          openTab({ id: "settings", title: "Settings", closable: true });
+        },
+      },
+      {
+        id: "create-pull-request",
+        category: "Git",
+        title: "Create Pull Request",
+        icon: GitPullRequest,
+        action: () => setCreatePrOpen(true),
       },
       {
         id: "toggle-theme",
@@ -132,7 +224,7 @@ export const CommandPalette: React.FC = () => {
         action: () => window.location.reload(),
       },
     ],
-    [openTab, setActiveActivity, setError, setLoading, setRepo, setTheme, theme, toggleGitOutput]
+    [openTab, setActiveActivity, setCreatePrOpen, setError, setLoading, setRepo, setTheme, theme, toggleGitOutput]
   );
 
   const filtered = useMemo(() => filterCommands(commandList, query), [commandList, query]);
@@ -150,12 +242,18 @@ export const CommandPalette: React.FC = () => {
       } else if (e.key === "Escape" && isCommandPaletteOpen) {
         e.preventDefault();
         setCommandPaletteOpen(false);
+      } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        setActiveActivity("changes");
+      } else if (isCmdOrCtrl && e.shiftKey && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void sync();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isCommandPaletteOpen, setCommandPaletteOpen]);
+  }, [isCommandPaletteOpen, setActiveActivity, setCommandPaletteOpen, sync]);
 
   // Focus input when opened
   useEffect(() => {

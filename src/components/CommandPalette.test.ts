@@ -33,6 +33,18 @@ describe("filterCommands", () => {
       title: "Switch Theme",
       action: () => {},
     },
+    {
+      id: "view-settings",
+      category: "Preferences",
+      title: "Open Settings",
+      action: () => {},
+    },
+    {
+      id: "create-pull-request",
+      category: "Git",
+      title: "Create Pull Request",
+      action: () => {},
+    },
   ];
 
   it("returns all commands when query is empty", () => {
@@ -42,7 +54,7 @@ describe("filterCommands", () => {
 
   it("filters commands by category", () => {
     const results = filterCommands(mockCommands, "git");
-    expect(results.length).toBe(3); // 2 "Git:" + 1 "View: Show Git Graph"
+    expect(results.length).toBe(4); // 3 "Git" + 1 "View: Show Git Graph"
     expect(results.some((r) => r.id === "open-repo")).toBe(true);
     expect(results.some((r) => r.id === "toggle-git-output")).toBe(true);
   });
@@ -64,5 +76,15 @@ describe("filterCommands", () => {
   it("returns empty array when no matches are found", () => {
     const results = filterCommands(mockCommands, "non-existent-command-xyz");
     expect(results.length).toBe(0);
+  });
+
+  it("finds settings and pull request commands", () => {
+    const settingsResults = filterCommands(mockCommands, "settings");
+    expect(settingsResults.length).toBe(1);
+    expect(settingsResults[0].id).toBe("view-settings");
+
+    const prResults = filterCommands(mockCommands, "pull request");
+    expect(prResults.length).toBe(1);
+    expect(prResults[0].id).toBe("create-pull-request");
   });
 });

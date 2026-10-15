@@ -24,7 +24,7 @@ const activities: ActivityItem[] = [
 ];
 
 export const ActivityBar: React.FC = () => {
-  const { activeActivity, isSidebarOpen, setActiveActivity, theme, setTheme } = useUIStore();
+  const { activeActivity, isSidebarOpen, setActiveActivity, theme, setTheme, openTab } = useUIStore();
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark");
@@ -73,7 +73,10 @@ export const ActivityBar: React.FC = () => {
         <button
           type="button"
           title="Settings"
-          onClick={() => setActiveActivity("settings")}
+          onClick={() => {
+            setActiveActivity("settings");
+            openTab({ id: "settings", title: "Settings", closable: true });
+          }}
           className={`flex h-10 w-10 items-center justify-center rounded transition-colors ${
             activeActivity === "settings" && isSidebarOpen
               ? "text-vscode-fg bg-vscode-hover"

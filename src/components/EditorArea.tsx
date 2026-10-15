@@ -1,43 +1,82 @@
 import React from "react";
-import { X, GitGraph, FileCode, Sparkles } from "lucide-react";
+import { X, Sparkles } from "lucide-react";
 import { useUIStore, TabItem } from "@/stores/ui";
 import { WelcomeView } from "@/components/WelcomeView";
+import { DiffView } from "@/views/Diff/DiffView";
+import { GraphView } from "@/views/Graph/GraphView";
+import { MergeEditorView } from "@/views/MergeEditor/MergeEditorView";
+import { BlameView } from "@/views/Blame/BlameView";
+import { FileHistoryView } from "@/views/FileHistory/FileHistoryView";
+import { InteractiveRebaseView } from "@/views/Rebase/InteractiveRebaseView";
+import { GraphAction } from "@/graph/types";
+import { useScmStore } from "@/scm/scmStore";
 import { useRepoStore } from "@/stores/repo";
+import { SettingsView } from "@/views/Settings/SettingsView";
+import { defaultSettingsDataSource } from "@/settings";
 
 export const EditorArea: React.FC = () => {
   const { tabs, activeTabId, setActiveTabId, closeTab } = useUIStore();
   const { repoName, headBranch } = useRepoStore();
+  const { activeDiff } = useScmStore();
+
+  const { openTab } = useUIStore();
+
+  const handleGraphAction = (action: GraphAction) => {
+    if (action.type === "rebase-interactive") {
+      const sha = typeof action.payload?.sha === "string" ? action.payload.sha : undefined;
+      openTab({
+        id: "rebase-interactive",
+        title: sha ? `Rebase (${sha.slice(0, 7)})` : "Interactive Rebase",
+        closable: true,
+      });
+    }
+  };
 
   const renderTabContent = (tab: TabItem) => {
     if (tab.id === "welcome") {
       return <WelcomeView />;
     }
 
+    if (tab.id === "settings") {
+      return <SettingsView dataSource={defaultSettingsDataSource} />;
+    }
+
     if (tab.id === "graph") {
+      return <GraphView onAction={handleGraphAction} />;
+    }
+
+    if (tab.id.startsWith("diff-") && tab.id !== "diff-") {
+      const filePath = tab.id.substring("diff-".length);
+      const diffContext =
+        activeDiff && activeDiff.path === filePath ? activeDiff.context : "unstaged";
+      return <DiffView filePath={filePath} context={diffContext} />;
+    }
+
+    if (tab.id.startsWith("merge-")) {
+      const filePath = tab.id.substring("merge-".length);
+      return <MergeEditorView filePath={filePath} />;
+    }
+
+    if (tab.id.startsWith("blame-")) {
+      const filePath = tab.id.substring("blame-".length);
       return (
-        <div className="flex h-full w-full flex-col items-center justify-center p-8 text-center text-vscode-muted gap-3">
-          <GitGraph className="h-12 w-12 text-vscode-accent opacity-80" />
-          <h2 className="text-base font-semibold text-vscode-fg">Git Graph (Milestone 2)</h2>
-          <p className="max-w-md text-xs leading-relaxed">
-            Fast, interactive commit graph with topological lanes, commit details, compare diffs,
-            and 60 FPS virtualization for repositories with 200k+ commits.
-          </p>
-        </div>
+        <BlameView
+          filePath={filePath}
+          onSelectCommitInGraph={() => {
+            openTab({ id: "graph", title: "Git Graph", closable: true });
+          }}
+        />
       );
     }
 
-    if (tab.id.startsWith("diff-")) {
-      return (
-        <div className="flex h-full w-full flex-col items-center justify-center p-8 text-center text-vscode-muted gap-3">
-          <FileCode className="h-12 w-12 text-vscode-accent opacity-80" />
-          <h2 className="text-base font-semibold text-vscode-fg">Monaco Diff Editor (Milestone 1)</h2>
-          <p className="max-w-md text-xs leading-relaxed">
-            Side-by-side and inline diffs, syntax highlighting, hunk staging, and range reversion.
-          </p>
-        </div>
-      );
+    if (tab.id.startsWith("file-history-")) {
+      const filePath = tab.id.substring("file-history-".length);
+      return <FileHistoryView filePath={filePath} />;
     }
 
+    if (tab.id === "rebase-interactive") {
+      return <InteractiveRebaseView />;
+    }
     return (
       <div className="flex h-full w-full flex-col items-center justify-center p-8 text-center text-vscode-muted gap-2">
         <Sparkles className="h-8 w-8 text-vscode-accent" />
