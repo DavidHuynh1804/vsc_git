@@ -85,17 +85,145 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 export type SettingKey = keyof AppSettings;
 
+export function isValidGlob(pattern: string): { valid: boolean; error?: string } {
+  if (typeof pattern !== "string" || pattern.trim() === "") {
+    return { valid: false, error: "Glob pattern cannot be empty" };
+  }
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  for (let i = 0; i < pattern.length; i++) {
+    const ch = pattern[i];
+    if (ch === "[") {
+      bracketDepth++;
+      if (bracketDepth > 1) {
+        return { valid: false, error: `Nested square brackets in glob: "${pattern}"` };
+      }
+    } else if (ch === "]") {
+      if (bracketDepth === 0) {
+        return { valid: false, error: `Unmatched closing bracket in glob: "${pattern}"` };
+      }
+      bracketDepth--;
+    } else if (ch === "{") {
+      braceDepth++;
+    } else if (ch === "}") {
+      if (braceDepth === 0) {
+        return { valid: false, error: `Unmatched closing brace in glob: "${pattern}"` };
+      }
+      braceDepth--;
+    }
+  }
+  if (bracketDepth !== 0) {
+    return { valid: false, error: `Unmatched opening bracket in glob: "${pattern}"` };
+  }
+  if (braceDepth !== 0) {
+    return { valid: false, error: `Unmatched opening brace in glob: "${pattern}"` };
+  }
+  return { valid: true };
+}
+
+const VALID_SMART_COMMIT: Record<string, true> = { ask: true, always: true, never: true };
+const VALID_UNTRACKED: Record<string, true> = { mixed: true, separate: true, hidden: true };
+const VALID_SCM_VIEW_MODE: Record<string, true> = { list: true, tree: true };
+const VALID_DATE_FORMAT: Record<string, true> = { relative: true, absolute: true };
+const VALID_AI_PROVIDER: Record<string, true> = { claude: true, openai: true, ollama: true };
+const VALID_AI_LANG: Record<string, true> = { auto: true, en: true, vi: true };
+const VALID_THEME: Record<string, true> = { system: true, dark: true, light: true };
+const VALID_CHANNEL: Record<string, true> = { stable: true, beta: true };
+
 export function validateSetting<K extends SettingKey>(
   key: K,
   value: AppSettings[K]
 ): { valid: boolean; error?: string } {
   switch (key) {
+    case "git.autoFetch":
+    case "git.confirmSync":
+    case "git.pruneOnFetch":
+    case "diff.renderSideBySide":
+    case "diff.ignoreTrimWhitespace":
+    case "graph.showRemoteBranches":
+    case "graph.showTags":
+    case "graph.showStashes":
+    case "ai.enabled": {
+      if (typeof value !== "boolean") {
+        return { valid: false, error: "Must be a boolean (true/false)" };
+      }
+      return { valid: true };
+    }
     case "git.autoFetchPeriodSec":
     case "graph.pageSize":
     case "ai.maxDiffTokens": {
       const num = Number(value);
-      if (isNaN(num) || !Number.isInteger(num) || num <= 0) {
+      if (typeof value !== "number" || isNaN(num) || !Number.isInteger(num) || num <= 0) {
         return { valid: false, error: "Must be a positive integer" };
+      }
+      return { valid: true };
+    }
+    case "git.enableSmartCommit": {
+      if (typeof value !== "string" || !VALID_SMART_COMMIT[value]) {
+        return { valid: false, error: "Must be one of: 'ask', 'always', 'never'" };
+      }
+      return { valid: true };
+    }
+    case "git.untrackedChanges": {
+      if (typeof value !== "string" || !VALID_UNTRACKED[value]) {
+        return { valid: false, error: "Must be one of: 'mixed', 'separate', 'hidden'" };
+      }
+      return { valid: true };
+    }
+    case "scm.viewMode": {
+      if (typeof value !== "string" || !VALID_SCM_VIEW_MODE[value]) {
+        return { valid: false, error: "Must be one of: 'list', 'tree'" };
+      }
+      return { valid: true };
+    }
+    case "graph.dateFormat": {
+      if (typeof value !== "string" || !VALID_DATE_FORMAT[value]) {
+        return { valid: false, error: "Must be one of: 'relative', 'absolute'" };
+      }
+      return { valid: true };
+    }
+    case "ai.provider": {
+      if (typeof value !== "string" || !VALID_AI_PROVIDER[value]) {
+        return { valid: false, error: "Must be one of: 'claude', 'openai', 'ollama'" };
+      }
+      return { valid: true };
+    }
+    case "ai.language": {
+      if (typeof value !== "string" || !VALID_AI_LANG[value]) {
+        return { valid: false, error: "Must be one of: 'auto', 'en', 'vi'" };
+      }
+      return { valid: true };
+    }
+    case "ui.theme": {
+      if (typeof value !== "string" || !VALID_THEME[value]) {
+        return { valid: false, error: "Must be one of: 'system', 'dark', 'light'" };
+      }
+      return { valid: true };
+    }
+    case "update.channel": {
+      if (typeof value !== "string" || !VALID_CHANNEL[value]) {
+        return { valid: false, error: "Must be one of: 'stable', 'beta'" };
+      }
+      return { valid: true };
+    }
+    case "git.path":
+    case "git.defaultCloneDir": {
+      if (value !== null && typeof value !== "string") {
+        return { valid: false, error: "Must be a string or null" };
+      }
+      return { valid: true };
+    }
+    case "externalEditor.command":
+    case "ai.model": {
+      if (typeof value !== "string" || value.trim() === "") {
+        return { valid: false, error: "Must be a non-empty string" };
+      }
+      return { valid: true };
+    }
+    case "externalEditor.args":
+    case "ai.disabledRepos": {
+      if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+        return { valid: false, error: "Must be an array of strings" };
       }
       return { valid: true };
     }
@@ -103,8 +231,11 @@ export function validateSetting<K extends SettingKey>(
       if (value === null || value === "") {
         return { valid: true };
       }
+      if (typeof value !== "string") {
+        return { valid: false, error: "Must be a string or null" };
+      }
       try {
-        const url = new URL(String(value));
+        const url = new URL(value);
         if (url.protocol !== "http:" && url.protocol !== "https:") {
           return { valid: false, error: "Must use http:// or https://" };
         }
@@ -118,8 +249,32 @@ export function validateSetting<K extends SettingKey>(
         return { valid: false, error: "Must be an array of globs" };
       }
       for (const item of value) {
-        if (typeof item !== "string" || item.trim() === "") {
-          return { valid: false, error: "Glob entries cannot be empty" };
+        const check = isValidGlob(item);
+        if (!check.valid) {
+          return { valid: false, error: check.error };
+        }
+      }
+      return { valid: true };
+    }
+    case "hosts": {
+      if (!Array.isArray(value)) {
+        return { valid: false, error: "Hosts must be an array" };
+      }
+      for (const host of value) {
+        if (
+          typeof host !== "object" ||
+          host === null ||
+          typeof host.host !== "string" ||
+          !host.host.trim() ||
+          typeof host.kind !== "string" ||
+          typeof host.apiBaseUrl !== "string"
+        ) {
+          return { valid: false, error: "Invalid host configuration object" };
+        }
+        try {
+          new URL(host.apiBaseUrl);
+        } catch {
+          return { valid: false, error: `Invalid apiBaseUrl for host ${host.host}` };
         }
       }
       return { valid: true };
@@ -141,11 +296,12 @@ export function validateRawSettingsJson(jsonStr: string): {
     }
 
     for (const [k, v] of Object.entries(parsed)) {
-      if (k in DEFAULT_SETTINGS) {
-        const check = validateSetting(k as SettingKey, v as never);
-        if (!check.valid) {
-          return { valid: false, error: `Invalid ${k}: ${check.error}` };
-        }
+      if (!(k in DEFAULT_SETTINGS)) {
+        return { valid: false, error: `Unknown setting key: "${k}"` };
+      }
+      const check = validateSetting(k as SettingKey, v as never);
+      if (!check.valid) {
+        return { valid: false, error: `Invalid ${k}: ${check.error}` };
       }
     }
 

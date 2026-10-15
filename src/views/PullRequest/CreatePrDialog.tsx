@@ -10,6 +10,8 @@ import {
 } from "@/integrations/types";
 import { defaultHostingDataSource } from "@/integrations/hosting";
 import { defaultAiDataSource, defaultAiConsentDataSource } from "@/integrations/ai";
+import { SettingsDataSource } from "@/settings/types";
+import { defaultSettingsDataSource } from "@/settings";
 import { CiBadge } from "@/components/CiBadge";
 import { AiConsentDialog } from "@/views/Settings/AiConsentDialog";
 import {
@@ -25,6 +27,21 @@ import {
   Loader2,
 } from "lucide-react";
 
+export function resolveAiEndpoint(provider: string, baseUrl?: string | null): string {
+  if (baseUrl) {
+    try {
+      return new URL(baseUrl).host;
+    } catch {
+      return baseUrl;
+    }
+  }
+  const p = provider.toLowerCase();
+  if (p === "claude") return "api.anthropic.com";
+  if (p === "openai") return "api.openai.com";
+  if (p === "ollama") return "localhost:11434";
+  return provider;
+}
+
 export interface CreatePrDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -34,8 +51,10 @@ export interface CreatePrDialogProps {
   aiDataSource?: AiDataSource;
   host?: HostConfig;
   aiConsentDataSource?: AiConsentDataSource;
+  settingsDataSource?: SettingsDataSource;
   repoPath?: string;
   provider?: string;
+  aiBaseUrl?: string | null;
 }
 
 export const CreatePrDialog: React.FC<CreatePrDialogProps> = ({
@@ -51,9 +70,35 @@ export const CreatePrDialog: React.FC<CreatePrDialogProps> = ({
     apiBaseUrl: "https://api.github.com",
   },
   aiConsentDataSource = defaultAiConsentDataSource,
+  settingsDataSource = defaultSettingsDataSource,
   repoPath = "",
-  provider = "claude",
+  provider,
+  aiBaseUrl,
 }) => {
+  const [activeProvider, setActiveProvider] = useState(provider ?? "claude");
+  const [activeBaseUrl, setActiveBaseUrl] = useState<string | null | undefined>(aiBaseUrl);
+
+  useEffect(() => {
+    let active = true;
+    settingsDataSource
+      .get()
+      .then((s) => {
+        if (active) {
+          if (!provider) {
+            setActiveProvider(s["ai.provider"]);
+          }
+          if (aiBaseUrl === undefined) {
+            setActiveBaseUrl(s["ai.baseUrl"]);
+          }
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [settingsDataSource, provider, aiBaseUrl]);
+
+  const aiEndpoint = resolveAiEndpoint(activeProvider, activeBaseUrl);
   const [base, setBase] = useState(defaultBaseBranch);
   const [head, setHead] = useState(currentBranch);
   const [title, setTitle] = useState("");
@@ -171,8 +216,13 @@ export const CreatePrDialog: React.FC<CreatePrDialogProps> = ({
   };
 
   const handleAiGenerate = () => {
-    const isRemote = provider.toLowerCase() !== "ollama";
-    if (isRemote && !aiConsentDataSource.hasConsent(repoPath, provider)) {
+    if (!repoPath || !repoPath.trim()) {
+      setSubmitError("Cannot generate PR description with AI: no repository is currently opened.");
+      return;
+    }
+    const isRemote =
+      activeProvider.toLowerCase() !== "ollama" && !activeBaseUrl?.includes("localhost");
+    if (isRemote && !aiConsentDataSource.hasConsent(repoPath, activeProvider)) {
       setShowConsentDialog(true);
       return;
     }
@@ -571,8 +621,8 @@ export const CreatePrDialog: React.FC<CreatePrDialogProps> = ({
         <AiConsentDialog
           isOpen={showConsentDialog}
           repoPath={repoPath}
-          provider={provider}
-          host={host.host}
+          provider={activeProvider}
+          host={aiEndpoint}
           consentDataSource={aiConsentDataSource}
           onConfirm={() => {
             setShowConsentDialog(false);

@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import { CreatePrDialog } from "./CreatePrDialog";
+import { CreatePrDialog, resolveAiEndpoint } from "./CreatePrDialog";
 import { MockHostingDataSource } from "@/integrations/hosting";
 import { MockAiDataSource, LocalStorageAiConsentDataSource } from "@/integrations/ai";
 
@@ -71,7 +71,8 @@ describe("CreatePrDialog", () => {
     // Consent dialog must appear
     expect(await screen.findByRole("dialog", { name: /AI Consent/i })).toBeInTheDocument();
     expect(screen.getByText(/Claude/i)).toBeInTheDocument();
-
+    // Crucial check: consent dialog shows AI endpoint, NOT git host
+    expect(screen.getByText(/api\.anthropic\.com/i)).toBeInTheDocument();
     // Confirm consent
     const continueBtn = screen.getByRole("button", { name: /Tiếp tục/i });
     fireEvent.click(continueBtn);
@@ -89,6 +90,38 @@ describe("CreatePrDialog", () => {
     );
     const titleInput = screen.getByPlaceholderText(/feat\(auth\)/i);
     expect(titleInput).toHaveValue("feat: integrate changes from feat/my-feature into main");
+  });
+
+  it("disallows AI consent and shows error when repoPath is empty", async () => {
+    const hostDs = new MockHostingDataSource();
+    const aiDs = new MockAiDataSource();
+    render(
+      <CreatePrDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        currentBranch="feat/my-feature"
+        hostingDataSource={hostDs}
+        aiDataSource={aiDs}
+        repoPath=""
+      />
+    );
+
+    const aiBtn = screen.getByRole("button", { name: /Generate with AI/i });
+    fireEvent.click(aiBtn);
+
+    expect(screen.queryByRole("dialog", { name: /AI Consent/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Cannot generate PR description with AI: no repository is currently opened/i)
+    ).toBeInTheDocument();
+  });
+
+  it("resolves AI endpoints accurately based on provider and custom baseUrl", () => {
+    expect(resolveAiEndpoint("claude")).toBe("api.anthropic.com");
+    expect(resolveAiEndpoint("openai")).toBe("api.openai.com");
+    expect(resolveAiEndpoint("ollama")).toBe("localhost:11434");
+    expect(resolveAiEndpoint("openai", "https://proxy.internal.corp/v1")).toBe(
+      "proxy.internal.corp"
+    );
   });
 
   it("searches reviewers with debounce and adds reviewer chip", async () => {

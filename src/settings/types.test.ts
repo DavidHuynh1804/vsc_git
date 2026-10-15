@@ -31,6 +31,8 @@ describe("Settings Types and Data Source", () => {
 
     expect(validateSetting("ai.excludeGlobs", ["**/*.lock", "*.min.js"]).valid).toBe(true);
     expect(validateSetting("ai.excludeGlobs", [""]).valid).toBe(false);
+    expect(validateSetting("ai.excludeGlobs", ["["]).valid).toBe(false);
+    expect(validateSetting("ai.excludeGlobs", ["{unmatched"]).valid).toBe(false);
   });
 
   it("validates raw JSON string and returns parsed data", () => {
@@ -47,6 +49,15 @@ describe("Settings Types and Data Source", () => {
     const invalidRes = validateRawSettingsJson(invalidJson);
     expect(invalidRes.valid).toBe(false);
     expect(invalidRes.error).toContain("Must be a positive integer");
+    const unknownKeyJson = '{"unknown.key": 123}';
+    const unknownRes = validateRawSettingsJson(unknownKeyJson);
+    expect(unknownRes.valid).toBe(false);
+    expect(unknownRes.error).toContain("Unknown setting key");
+
+    const invalidEnumJson = '{"scm.viewMode": "invalid-mode"}';
+    const enumRes = validateRawSettingsJson(invalidEnumJson);
+    expect(enumRes.valid).toBe(false);
+    expect(enumRes.error).toContain("Must be one of");
 
     const malformedJson = "{bad_json";
     expect(validateRawSettingsJson(malformedJson).valid).toBe(false);
