@@ -11,9 +11,12 @@ import { useRepoStore } from "@/stores/repo";
 import { useScmStore } from "@/scm/scmStore";
 import { commands, events } from "@/bindings";
 import { AlertCircle, X } from "lucide-react";
+import { useUIStore } from "@/stores/ui";
+import { CreatePrDialog } from "@/views/PullRequest/CreatePrDialog";
 
 export default function App() {
-  const { error, setError, setRepo } = useRepoStore();
+  const { error, setError, setRepo, headBranch, repoRoot } = useRepoStore();
+  const { isCreatePrOpen, setCreatePrOpen } = useUIStore();
   const { error: scmError, setError: setScmError } = useScmStore();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -58,6 +61,12 @@ export default function App() {
 
       <StatusBar />
       <CommandPalette />
+      <CreatePrDialog
+        isOpen={isCreatePrOpen}
+        onClose={() => setCreatePrOpen(false)}
+        currentBranch={headBranch || "main"}
+        repoPath={repoRoot || ""}
+      />
 
       {/* AppError Toast per spec 12 */}
       {scmError && (

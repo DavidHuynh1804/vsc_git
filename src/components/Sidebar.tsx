@@ -8,7 +8,7 @@ import { BranchesView } from "@/views/Branches/BranchesView";
 import { StashesView } from "@/views/Stashes/StashesView";
 
 export const Sidebar: React.FC = () => {
-  const { activeActivity, isSidebarOpen, sidebarWidth, setSidebarWidth } = useUIStore();
+  const { activeActivity, isSidebarOpen, sidebarWidth, setSidebarWidth, openTab } = useUIStore();
   const { repoRoot, setRepo, setLoading, setError } = useRepoStore();
 
   const [isDragging, setIsDragging] = useState(false);
@@ -131,6 +131,13 @@ export const Sidebar: React.FC = () => {
               <span className="font-semibold text-xs tracking-wider">SETTINGS</span>
               <Settings className="h-3.5 w-3.5" />
             </div>
+            <button
+              type="button"
+              onClick={() => openTab({ id: "settings", title: "Settings", closable: true })}
+              className="flex items-center justify-center gap-1.5 rounded bg-vscode-accent px-3 py-1.5 text-xs text-white hover:opacity-90 font-medium"
+            >
+              <span>Open Settings Editor</span>
+            </button>
             {settingsData ? (
               <div className="flex flex-col gap-2.5 text-xs text-vscode-muted">
                 <div>

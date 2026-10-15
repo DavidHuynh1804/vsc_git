@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Search, FolderOpen, Terminal, Settings, Sun, Moon, RefreshCw, FileText, GitGraph, GitMerge, Layers } from "lucide-react";
+import { Search, FolderOpen, Terminal, Settings, Sun, Moon, RefreshCw, FileText, GitPullRequest, GitGraph, GitMerge, Layers } from "lucide-react";
 import { useUIStore } from "@/stores/ui";
 import { useRepoStore } from "@/stores/repo";
 import { useScmStore } from "@/scm/scmStore";
@@ -31,6 +31,7 @@ export const CommandPalette: React.FC = () => {
     theme,
     setTheme,
     openTab,
+    setCreatePrOpen,
   } = useUIStore();
   const { setRepo, setLoading, setError } = useRepoStore();
 
@@ -184,7 +185,17 @@ export const CommandPalette: React.FC = () => {
         category: "Preferences",
         title: "Open Settings",
         icon: Settings,
-        action: () => setActiveActivity("settings"),
+        action: () => {
+          setActiveActivity("settings");
+          openTab({ id: "settings", title: "Settings", closable: true });
+        },
+      },
+      {
+        id: "create-pull-request",
+        category: "Git",
+        title: "Create Pull Request",
+        icon: GitPullRequest,
+        action: () => setCreatePrOpen(true),
       },
       {
         id: "toggle-theme",
@@ -213,7 +224,7 @@ export const CommandPalette: React.FC = () => {
         action: () => window.location.reload(),
       },
     ],
-    [openTab, setActiveActivity, setError, setLoading, setRepo, setTheme, theme, toggleGitOutput]
+    [openTab, setActiveActivity, setCreatePrOpen, setError, setLoading, setRepo, setTheme, theme, toggleGitOutput]
   );
 
   const filtered = useMemo(() => filterCommands(commandList, query), [commandList, query]);

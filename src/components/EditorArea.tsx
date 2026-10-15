@@ -11,6 +11,8 @@ import { InteractiveRebaseView } from "@/views/Rebase/InteractiveRebaseView";
 import { GraphAction } from "@/graph/types";
 import { useScmStore } from "@/scm/scmStore";
 import { useRepoStore } from "@/stores/repo";
+import { SettingsView } from "@/views/Settings/SettingsView";
+import { defaultSettingsDataSource } from "@/settings";
 
 export const EditorArea: React.FC = () => {
   const { tabs, activeTabId, setActiveTabId, closeTab } = useUIStore();
@@ -33,6 +35,10 @@ export const EditorArea: React.FC = () => {
   const renderTabContent = (tab: TabItem) => {
     if (tab.id === "welcome") {
       return <WelcomeView />;
+    }
+
+    if (tab.id === "settings") {
+      return <SettingsView dataSource={defaultSettingsDataSource} />;
     }
 
     if (tab.id === "graph") {
