@@ -73,16 +73,22 @@ const binaries = ['vsc-git-askpass', 'vsc-git-sequence-editor'];
 const destDir = path.join(repoRoot, 'src-tauri', 'binaries');
 fs.mkdirSync(destDir, { recursive: true });
 
+const targetBase = process.env.CARGO_TARGET_DIR
+  ? path.resolve(process.env.CARGO_TARGET_DIR)
+  : path.join(repoRoot, 'target');
+
 for (const bin of binaries) {
   const srcBinName = `${bin}${exeExt}`;
-  let srcPath = path.join(repoRoot, 'target', target, profile, srcBinName);
+  let srcPath = path.join(targetBase, target, profile, srcBinName);
   if (!fs.existsSync(srcPath)) {
-    srcPath = path.join(repoRoot, 'target', profile, srcBinName);
+    srcPath = path.join(targetBase, profile, srcBinName);
   }
-
-  if (!fs.existsSync(srcPath)) {
-    console.error(`Error: Built binary not found at ${srcPath}`);
-    process.exit(1);
+  if (!fs.existsSync(srcPath) && targetBase !== path.join(repoRoot, 'target')) {
+    // Fallback to repo target if CARGO_TARGET_DIR didn't produce the binary
+    srcPath = path.join(repoRoot, 'target', target, profile, srcBinName);
+    if (!fs.existsSync(srcPath)) {
+      srcPath = path.join(repoRoot, 'target', profile, srcBinName);
+    }
   }
 
   const destBinName = `${bin}-${target}${exeExt}`;
