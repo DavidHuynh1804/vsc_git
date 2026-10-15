@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { M3DataSource, MockM3DataSource, TauriM3DataSource } from "./dataSource";
+import { isMock } from "@/env";
 import {
   NormalizedOperationState,
   normalizeOperationState,
@@ -16,10 +17,9 @@ export interface M3State {
   opAbort: () => Promise<void>;
 }
 
-const defaultM3DataSource: M3DataSource =
-  typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
-    ? new TauriM3DataSource()
-    : new MockM3DataSource();
+const defaultM3DataSource: M3DataSource = isMock()
+  ? new MockM3DataSource()
+  : new TauriM3DataSource();
 
 export const useM3Store = create<M3State>((set, get) => {
   defaultM3DataSource.onOperationChanged(() => {

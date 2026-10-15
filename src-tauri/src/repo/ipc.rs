@@ -26,9 +26,14 @@ pub struct PromptRequestEvent {
     pub prompt: String,
 }
 
+struct PendingPromptEntry {
+    kind: String,
+    tx: Sender<Option<String>>,
+}
+
 #[derive(Default)]
 pub struct PendingPrompts {
-    prompts: RwLock<HashMap<String, Sender<Option<String>>>>,
+    prompts: RwLock<HashMap<String, PendingPromptEntry>>,
 }
 
 impl PendingPrompts {
@@ -38,17 +43,37 @@ impl PendingPrompts {
         }
     }
 
-    pub fn insert(&self, id: String, tx: Sender<Option<String>>) {
-        self.prompts.write().insert(id, tx);
+    pub fn insert(&self, id: String, kind: String, tx: Sender<Option<String>>) {
+        self.prompts
+            .write()
+            .insert(id, PendingPromptEntry { kind, tx });
     }
 
     pub fn answer(&self, id: &str, val: Option<String>) -> bool {
-        if let Some(tx) = self.prompts.write().remove(id) {
-            let _ = tx.send(val);
+        if let Some(entry) = self.prompts.write().remove(id) {
+            let _ = entry.tx.send(val);
             true
         } else {
             false
         }
+    }
+
+    pub fn answer_by_kind(&self, kind: &str, val: Option<String>) -> bool {
+        let mut map = self.prompts.write();
+        let target_key = map.iter().find_map(|(k, v)| {
+            if v.kind == kind {
+                Some(k.clone())
+            } else {
+                None
+            }
+        });
+        if let Some(key) = target_key {
+            if let Some(entry) = map.remove(&key) {
+                let _ = entry.tx.send(val);
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -272,7 +297,7 @@ fn handle_single_connection(
     };
 
     let (tx, rx) = channel::<Option<String>>();
-    get_pending_prompts().insert(prompt_id.clone(), tx);
+    get_pending_prompts().insert(prompt_id.clone(), kind_str.clone(), tx);
 
     emitter(&PromptRequestEvent {
         id: prompt_id.clone(),
@@ -408,7 +433,10 @@ mod tests {
     fn test_pending_prompts() {
         let prompts = PendingPrompts::new();
         let (tx, rx) = channel::<Option<String>>();
-        prompts.insert("p1".to_string(), tx);
+        prompts.insert("p1".to_string(), "askpass".to_string(), tx);
+
+        // Answering for sequence_editor does not answer an askpass prompt
+        assert!(!prompts.answer_by_kind("sequence_editor", Some("rebase".to_string())));
 
         assert!(prompts.answer("p1", Some("secret".to_string())));
         assert_eq!(rx.recv().unwrap(), Some("secret".to_string()));

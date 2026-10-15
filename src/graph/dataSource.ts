@@ -3,11 +3,15 @@ import type {
   CommitSummary,
   Edge,
   FileChange,
+  FileStatus,
   GraphFilter,
   GraphPage,
   GraphRow,
   RefLabel,
+  EdgeKind,
 } from "./types";
+import { commands, AppGraphFilter } from "@/bindings";
+import { reportAppError } from "@/utils/errors";
 
 export interface GraphDataSource {
   reset(filter?: GraphFilter): Promise<void>;
@@ -512,36 +516,139 @@ export class MockGraphDataSource implements GraphDataSource {
  * Tauri adapter stub connecting to Rust Tauri commands (spec 11).
  * Will be populated once M1 backend bindings are generated.
  */
+function toGraphFileStatus(s: string): FileStatus {
+  switch (s) {
+    case "Added":
+      return "A";
+    case "Deleted":
+      return "D";
+    case "Renamed":
+      return "R";
+    case "Copied":
+      return "C";
+    case "TypeChanged":
+      return "T";
+    default:
+      return "M";
+  }
+}
+
 export class TauriGraphDataSource implements GraphDataSource {
   async reset(filter?: GraphFilter): Promise<void> {
-    // TODO: invoke('graph_reset', { filter }) via generated commands.graphReset
-    console.debug("[TauriGraphDataSource] reset called with filter:", filter);
+    const refs =
+      !filter?.refs || filter.refs === "All"
+        ? null
+        : typeof filter.refs === "object" && "Selected" in filter.refs
+        ? filter.refs.Selected
+        : null;
+    const appFilter: AppGraphFilter = {
+      refs,
+      include_remotes: filter?.include_remotes ?? true,
+      include_tags: filter?.include_tags ?? true,
+      include_stash: filter?.include_stash ?? true,
+      first_parent_only: filter?.first_parent_only ?? false,
+    };
+    const res = await commands.graphReset(appFilter);
+    if (res.status === "error") {
+      reportAppError(res.error);
+      throw res.error;
+    }
   }
 
   async page(n: number): Promise<GraphPage> {
-    // TODO: invoke('graph_page', { n }) via generated commands.graphPage
-    console.debug("[TauriGraphDataSource] page called with n:", n);
+    const res = await commands.graphPage(n);
+    if (res.status === "error") {
+      reportAppError(res.error);
+      throw res.error;
+    }
     return {
-      commits: [],
-      rows: [],
-      has_more: false,
+      commits: res.data.commits.map((c) => ({
+        sha: c.sha,
+        short_sha: c.short_sha,
+        parents: c.parents,
+        author_name: c.author_name,
+        author_email: c.author_email,
+        author_time: c.author_time ?? 0,
+        committer_time: c.committer_time ?? 0,
+        subject: c.subject,
+        refs: c.refs.map((r) => ({
+          name: r.name,
+          kind: r.kind,
+        })),
+      })),
+      rows: res.data.rows.map((r) => ({
+        sha: r.sha,
+        col: r.col,
+        color: r.color,
+        edges: r.edges.map((e) => ({
+          from_col: e.from_col,
+          to_col: e.to_col,
+          kind: e.kind as EdgeKind,
+          color: e.color,
+        })),
+      })),
+      has_more: res.data.has_more,
     };
   }
 
   async detail(sha: string): Promise<CommitDetail> {
-    // TODO: invoke('commit_detail', { sha }) via generated commands.commitDetail
-    console.debug("[TauriGraphDataSource] detail called with sha:", sha);
-    throw new Error(`commit_detail not yet connected for ${sha}`);
+    const res = await commands.commitDetail(sha);
+    if (res.status === "error") {
+      reportAppError(res.error);
+      throw res.error;
+    }
+    return {
+      summary: {
+        sha: res.data.summary.sha,
+        short_sha: res.data.summary.short_sha,
+        parents: res.data.summary.parents,
+        author_name: res.data.summary.author_name,
+        author_email: res.data.summary.author_email,
+        author_time: res.data.summary.author_time ?? 0,
+        committer_time: res.data.summary.committer_time ?? 0,
+        subject: res.data.summary.subject,
+        refs: res.data.summary.refs.map((r) => ({
+          name: r.name,
+          kind: r.kind,
+        })),
+      },
+      body: res.data.body,
+      committer: {
+        name: res.data.committer.name,
+        email: res.data.committer.email,
+        time: res.data.committer.time ?? 0,
+      },
+      signature_present: res.data.signature_present,
+      files: res.data.files.map((f) => ({
+        path: f.path,
+        old_path: f.old_path,
+        status: toGraphFileStatus(f.status),
+        additions: f.additions,
+        deletions: f.deletions,
+        binary: f.binary,
+      })),
+    };
   }
 
-  async compare(_a: string, _b: string): Promise<FileChange[]> {
-    // TODO: invoke('compare', { a, b }) via generated commands.compare
-    console.debug("[TauriGraphDataSource] compare called with a, b:", _a, _b);
-    return [];
+  async compare(a: string, b: string): Promise<FileChange[]> {
+    const res = await commands.compare(a, b);
+    if (res.status === "error") {
+      reportAppError(res.error);
+      throw res.error;
+    }
+    return res.data.map((f) => ({
+      path: f.path,
+      old_path: f.old_path,
+      status: toGraphFileStatus(f.status),
+      additions: f.additions,
+      deletions: f.deletions,
+      binary: f.binary,
+    }));
   }
 
   async isDirty(): Promise<boolean> {
-    // TODO: invoke('get_status') -> check RepoStatus.staged / unstaged / untracked
-    return false;
+    const res = await commands.getStatus();
+    if (res.status === "error") return false;
+    return res.data.entries.length > 0;
   }
 }

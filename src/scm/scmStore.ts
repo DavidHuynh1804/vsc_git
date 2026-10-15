@@ -4,6 +4,8 @@ import {
   MockScmDataSource,
   TauriScmDataSource,
 } from "./dataSource";
+import { isMock } from "@/env";
+import { setGlobalErrorHandler } from "@/utils/errors";
 import {
   RepoStatus,
   RefList,
@@ -77,12 +79,17 @@ export interface ScmState {
 }
 
 // Default to MockScmDataSource for M1 development & tests
-const defaultDataSource: ScmDataSource =
-  typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
-    ? new TauriScmDataSource()
-    : new MockScmDataSource();
+const defaultDataSource: ScmDataSource = isMock()
+  ? new MockScmDataSource()
+  : new TauriScmDataSource();
 
 export const useScmStore = create<ScmState>((set, get) => {
+  setGlobalErrorHandler((err) => {
+    // Cast between bindings and SCM transport AppError shape
+    const appError = err as unknown as AppError;
+    set({ error: appError });
+  });
+
   // Listen for background status updates
   defaultDataSource.onStatusChanged(() => {
     void get().refreshStatus();

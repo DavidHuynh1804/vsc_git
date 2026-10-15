@@ -10,7 +10,13 @@ import {
   JobProgress,
   StatusEntry,
   AppError,
+  BranchInfo,
+  StatusEntryKind,
+  RefItem,
 } from "./types";
+import { commands, events, AppFileRev, AppError as BindingsAppError } from "@/bindings";
+import { reportAppError } from "@/utils/errors";
+import { isMock } from "@/env";
 import { applySelectedLines } from "./diffUtils";
 
 export interface ScmDataSource {
@@ -630,194 +636,478 @@ app.listen(port, () => {
  * TauriScmDataSource: wraps Tauri invoke commands according to Spec 11.
  */
 export class TauriScmDataSource implements ScmDataSource {
-  // TODO: connect with Tauri commands once feat/m1-backend bindings are generated
   private mockFallback = new MockScmDataSource();
+  private listeners: Set<() => void> = new Set();
+  private debounceTimer: number | null = null;
+  private unlistenStatusPromise: Promise<() => void> | null = null;
+  private unlistenRefsPromise: Promise<() => void> | null = null;
+
+  constructor() {
+    this.setupWatcher();
+  }
+
+  private setupWatcher() {
+    if (isMock()) return;
+    const notifyDebounced = () => {
+      clearTimeout(this.debounceTimer ?? undefined);
+      this.debounceTimer = window.setTimeout(() => {
+        this.notifyListeners();
+      }, 300);
+    };
+
+    this.unlistenStatusPromise = events.repoStatusChanged.listen(() => {
+      notifyDebounced();
+    });
+
+    this.unlistenRefsPromise = events.repoRefsChanged.listen(() => {
+      notifyDebounced();
+    });
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", () => {
+        this.notifyListeners();
+      });
+    }
+  }
+
+  dispose(): void {
+    clearTimeout(this.debounceTimer ?? undefined);
+    this.unlistenStatusPromise?.then((u) => u());
+    this.unlistenRefsPromise?.then((u) => u());
+    this.listeners.clear();
+  }
+  private handleError(error: BindingsAppError): never {
+    reportAppError(error);
+    throw error;
+  }
+
+
+  private notifyListeners() {
+    for (const listener of this.listeners) {
+      try {
+        listener();
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  onStatusChanged(cb: () => void): () => void {
+    this.listeners.add(cb);
+    return () => {
+      this.listeners.delete(cb);
+    };
+  }
 
   async getStatus(): Promise<RepoStatus> {
-    // Spec 11: get_status() -> RepoStatus
-    return this.mockFallback.getStatus();
+    const res = await commands.getStatus();
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
+    const branch: BranchInfo = {
+      head: res.data.branch.head ?? "",
+      upstream: res.data.branch.upstream ?? null,
+      ahead: res.data.branch.ahead,
+      behind: res.data.branch.behind,
+    };
+    const entries: StatusEntry[] = res.data.entries.map((entry) => {
+      let kind: StatusEntryKind;
+      if (entry.conflict_type || entry.kind === "Unmerged") {
+        kind = {
+          type: "Unmerged",
+          conflict_type: entry.conflict_type || "both modified",
+        };
+      } else if (entry.kind === "Untracked") {
+        kind = { type: "Untracked" };
+      } else if (entry.kind === "Renamed" || entry.orig_path) {
+        kind = {
+          type: "RenamedOrCopied",
+          staged: entry.staged ? "Renamed" : "Unmodified",
+          unstaged: entry.unstaged ? "Modified" : "Unmodified",
+          is_rename: true,
+          score: 100,
+          orig_path: entry.orig_path ?? entry.path,
+        };
+      } else {
+        kind = {
+          type: "Ordinary",
+          staged: entry.staged
+            ? entry.kind === "Added"
+              ? "Added"
+              : entry.kind === "Deleted"
+              ? "Deleted"
+              : "Modified"
+            : "Unmodified",
+          unstaged: entry.unstaged
+            ? entry.kind === "Deleted"
+              ? "Deleted"
+              : "Modified"
+            : "Unmodified",
+        };
+      }
+      return { path: entry.path, kind };
+    });
+    return { branch, entries };
   }
 
   async stage(paths: string[]): Promise<void> {
-    // Spec 11: stage(paths)
-    return this.mockFallback.stage(paths);
+    const res = await commands.stage(paths);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async unstage(paths: string[]): Promise<void> {
-    // Spec 11: unstage(paths)
-    return this.mockFallback.unstage(paths);
+    const res = await commands.unstage(paths);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async discard(paths: string[]): Promise<void> {
-    // Spec 11: discard(paths)
-    return this.mockFallback.discard(paths);
+    const res = await commands.discard(paths);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async stageAll(): Promise<void> {
-    // Spec 11: stage_all()
-    return this.mockFallback.stageAll();
+    const res = await commands.stageAll();
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async unstageAll(): Promise<void> {
-    // Spec 11: unstage_all()
-    return this.mockFallback.unstageAll();
+    const res = await commands.unstageAll();
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async discardAll(): Promise<void> {
-    // Spec 11: discard_all()
-    return this.mockFallback.discardAll();
+    const status = await this.getStatus();
+    const paths = status.entries.map((e) => e.path);
+    if (paths.length > 0) {
+      await this.discard(paths);
+    }
   }
 
   async stageSelections(path: string, selections: LineSelection[]): Promise<void> {
-    // Spec 11: stage_ranges(path, ranges)
-    return this.mockFallback.stageSelections(path, selections);
+    const res = await commands.stageSelections(path, selections);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async unstageSelections(path: string, selections: LineSelection[]): Promise<void> {
-    // Spec 11: unstage_ranges(path, ranges)
-    return this.mockFallback.unstageSelections(path, selections);
+    const res = await commands.unstageSelections(path, selections);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async revertSelections(path: string, selections: LineSelection[]): Promise<void> {
-    // Spec 11: revert_ranges(path, ranges)
-    return this.mockFallback.revertSelections(path, selections);
+    const res = await commands.revertSelections(path, selections);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async fileContent(path: string, rev: FileRev): Promise<string> {
-    // Spec 11: get_file_content(path, rev)
-    return this.mockFallback.fileContent(path, rev);
+    let appRev: AppFileRev;
+    switch (rev.kind) {
+      case "Head":
+        appRev = "Head";
+        break;
+      case "Index":
+        appRev = "Index";
+        break;
+      case "Worktree":
+        appRev = "Worktree";
+        break;
+      case "Commit":
+        appRev = { Commit: rev.sha };
+        break;
+      case "Stage":
+        appRev = { Stage: rev.n };
+        break;
+    }
+    const res = await commands.getFileContent(path, appRev);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
+    return res.data;
   }
 
   async saveFile(path: string, content: string): Promise<void> {
-    // Spec 11: save_worktree_file(path, content)
-    return this.mockFallback.saveFile(path, content);
+    const res = await commands.saveWorktreeFile(path, content);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async commit(options: CommitOptions): Promise<void> {
-    // Spec 11: commit(CommitOptions)
-    return this.mockFallback.commit(options);
+    const res = await commands.commit({
+      message: options.message,
+      amend: options.amend ?? false,
+      signoff: options.signoff ?? false,
+      no_verify: options.no_verify ?? false,
+      all: options.all ?? false,
+    });
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async lastCommitMessage(): Promise<string> {
-    // Spec 11: last_commit_message()
-    return this.mockFallback.lastCommitMessage();
+    const res = await commands.lastCommitMessage();
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
+    return res.data;
   }
 
-  async getDraftMessage(repoPath?: string): Promise<string> {
-    // Spec 11: get_draft_message()
-    return this.mockFallback.getDraftMessage(repoPath);
+  async getDraftMessage(_repoPath?: string): Promise<string> {
+    const res = await commands.getDraftMessage();
+    if (res.status === "error") {
+      return "";
+    }
+    return res.data;
   }
 
-  async setDraftMessage(message: string, repoPath?: string): Promise<void> {
-    // Spec 11: set_draft_message()
-    return this.mockFallback.setDraftMessage(message, repoPath);
+  async setDraftMessage(message: string, _repoPath?: string): Promise<void> {
+    const res = await commands.setDraftMessage(message);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async getRefs(): Promise<RefList> {
-    // Spec 11: list_refs()
-    return this.mockFallback.getRefs();
+    const res = await commands.listRefs();
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
+    const branches: RefItem[] = [];
+    const remotes: RefItem[] = [];
+    const tags: RefItem[] = [];
+    let head: string | null = null;
+    for (const r of res.data) {
+      if (r.kind === "LocalBranch" || r.kind === "Head") {
+        branches.push({
+          name: r.name,
+          fullName: `refs/heads/${r.name}`,
+          kind: "local",
+          isHead: r.kind === "Head",
+          upstream: r.upstream,
+          ahead: r.ahead,
+          behind: r.behind,
+          targetOid: r.target_sha,
+        });
+        if (r.kind === "Head") {
+          head = r.name;
+        }
+      } else if (r.kind === "RemoteBranch") {
+        const slashIdx = r.name.indexOf("/");
+        const remoteName = slashIdx !== -1 ? r.name.slice(0, slashIdx) : "origin";
+        remotes.push({
+          name: r.name,
+          fullName: `refs/remotes/${r.name}`,
+          kind: "remote",
+          remote: remoteName,
+          targetOid: r.target_sha,
+        });
+      } else if (r.kind === "Tag") {
+        tags.push({
+          name: r.name,
+          fullName: `refs/tags/${r.name}`,
+          kind: "tag",
+          targetOid: r.target_sha,
+        });
+      }
+    }
+    return { branches, remotes, tags, head };
   }
 
   async checkout(refName: string): Promise<void> {
-    // Spec 11: checkout(ref)
-    return this.mockFallback.checkout(refName);
+    const res = await commands.checkout(refName);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async createBranch(name: string, startPoint?: string): Promise<void> {
-    // Spec 11: create_branch(name, start)
-    return this.mockFallback.createBranch(name, startPoint);
+    const res = await commands.createBranch(name, startPoint ?? null);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async renameBranch(oldName: string, newName: string): Promise<void> {
-    // Spec 11: rename_branch(old, new)
-    return this.mockFallback.renameBranch(oldName, newName);
+    const res = await commands.renameBranch(oldName, newName);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async deleteBranch(name: string, force?: boolean): Promise<void> {
-    // Spec 11: delete_branch(name, force)
-    return this.mockFallback.deleteBranch(name, force);
+    const res = await commands.deleteBranch(name, force ?? false);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async setUpstream(branch: string, upstream: string): Promise<void> {
-    // Spec 11: set_upstream(branch, upstream)
-    return this.mockFallback.setUpstream(branch, upstream);
+    const res = await commands.setUpstream(branch, upstream);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async listStashes(): Promise<StashItem[]> {
-    // Spec 11: list_stashes()
-    return this.mockFallback.listStashes();
+    const res = await commands.listStashes();
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
+    return res.data.map((s) => ({
+      index: s.index,
+      message: s.subject,
+      branch: s.name,
+      date: s.date,
+      hash: s.commit_id,
+    }));
   }
 
   async stashPush(options: StashPushOptions): Promise<void> {
-    // Spec 11: stash_push(opts)
-    return this.mockFallback.stashPush(options);
+    const res = await commands.stashPush({
+      message: options.message ?? null,
+      include_untracked: options.includeUntracked ?? false,
+      paths: options.paths ?? [],
+    });
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async stashApply(index: number): Promise<void> {
-    // Spec 11: stash_apply(i)
-    return this.mockFallback.stashApply(index);
+    const res = await commands.stashApply(index);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async stashPop(index: number): Promise<void> {
-    // Spec 11: stash_pop(i)
-    return this.mockFallback.stashPop(index);
+    const res = await commands.stashPop(index);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async stashDrop(index: number): Promise<void> {
-    // Spec 11: stash_drop(i)
-    return this.mockFallback.stashDrop(index);
+    const res = await commands.stashDrop(index);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async stashDiff(index: number): Promise<string> {
-    // Spec 11: stash_diff(i)
-    return this.mockFallback.stashDiff(index);
+    const res = await commands.stashDiff(index);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
+    return res.data;
   }
 
   async fetch(remote?: string): Promise<JobId> {
-    // Spec 11: fetch(remote) -> JobId
-    return this.mockFallback.fetch(remote);
+    const res = await commands.fetch(remote ?? null);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
+    return res.data;
   }
 
-  async pull(_opts?: { remote?: string; branch?: string; rebase?: boolean }): Promise<JobId> {
-    // Spec 11: pull(opts) -> JobId
-    return this.mockFallback.pull();
+  async pull(opts?: { remote?: string; branch?: string; rebase?: boolean }): Promise<JobId> {
+    const mode = opts?.rebase ? "Rebase" : "Default";
+    const res = await commands.pull(mode);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
+    return res.data;
   }
 
-  async push(_opts?: { remote?: string; branch?: string; forceWithLease?: boolean }): Promise<JobId> {
-    // Spec 11: push(opts) -> JobId
-    return this.mockFallback.push();
+  async push(opts?: { remote?: string; branch?: string; forceWithLease?: boolean }): Promise<JobId> {
+    const res = await commands.push({
+      remote: opts?.remote ?? null,
+      branch: opts?.branch ?? null,
+      set_upstream: false,
+      force_with_lease: opts?.forceWithLease ?? false,
+      tags: false,
+    });
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
+    return res.data;
   }
 
   async sync(): Promise<JobId> {
-    // Spec 11: sync() -> JobId
-    return this.mockFallback.sync();
+    const res = await commands.sync();
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
+    return res.data;
   }
 
   subscribeJobProgress(jobId: JobId, callback: (progress: JobProgress) => void): () => void {
-    return this.mockFallback.subscribeJobProgress(jobId, callback);
+    let active = true;
+    const unlistenProgressPromise = events.jobProgress.listen((e) => {
+      if (active && e.payload.id === jobId) {
+        callback({
+          jobId,
+          title: e.payload.message,
+          percent: e.payload.percent ?? undefined,
+          message: e.payload.message,
+        });
+      }
+    });
+    const unlistenDonePromise = events.jobDone.listen((e) => {
+      if (active && e.payload.id === jobId) {
+        callback({
+          jobId,
+          title: e.payload.error ?? "Done",
+          percent: 100,
+          message: e.payload.error ?? "Done",
+        });
+      }
+    });
+    return () => {
+      active = false;
+      unlistenProgressPromise.then((u) => u());
+      unlistenDonePromise.then((u) => u());
+    };
   }
 
   async cancelJob(jobId: JobId): Promise<void> {
-    // Spec 11: cancel_job(id)
-    return this.mockFallback.cancelJob(jobId);
+    const res = await commands.cancelJob(jobId);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async aiGenerateCommit(onChunk?: (chunk: string) => void): Promise<string> {
-    // Spec 11: ai_generate_commit() -> JobId
     return this.mockFallback.aiGenerateCommit(onChunk);
   }
 
   async openInEditor(path: string, line?: number): Promise<void> {
-    // Spec 11: open_in_editor(path, line)
-    return this.mockFallback.openInEditor(path, line);
+    const res = await commands.openInEditor(path, line ?? null);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 
   async reveal(path: string): Promise<void> {
-    // Spec 11: reveal_in_file_manager(path)
-    return this.mockFallback.reveal(path);
-  }
-
-  onStatusChanged(cb: () => void): () => void {
-    return this.mockFallback.onStatusChanged(cb);
+    const res = await commands.revealInFileManager(path);
+    if (res.status === "error") {
+      this.handleError(res.error);
+    }
   }
 }
