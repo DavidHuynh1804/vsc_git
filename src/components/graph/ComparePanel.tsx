@@ -190,7 +190,7 @@ export const ComparePanel: React.FC<ComparePanelProps> = ({
       />
 
       {/* Header bar */}
-      <div className="flex items-center justify-between border-b border-vscode-border px-3 py-1.5 bg-vscode-activity text-xs">
+      <div className="flex items-center justify-between border-b border-vscode-border px-3 py-1.5 bg-vscode-sidebar text-xs">
         <div className="flex items-center gap-3 overflow-hidden">
           <span className="font-semibold text-vscode-fg uppercase text-[10px] tracking-wider">
             Comparing Commits

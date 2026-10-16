@@ -500,7 +500,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
       {/* Main Table Area */}
       <div className="flex flex-1 flex-col overflow-hidden min-h-0 relative">
         {/* Table Header */}
-        <div className="flex h-7 w-full items-center border-b border-vscode-border bg-vscode-activity text-[11px] font-semibold text-vscode-muted">
+        <div className="flex h-7 w-full items-center border-b border-vscode-border bg-vscode-sidebar text-[11px] font-semibold text-vscode-muted select-none">
           {columns
             .filter((c) => c.visible)
             .map((col) => (
@@ -673,7 +673,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
                             <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-vscode-input text-[8px] font-bold text-vscode-accent">
                               {getInitials(commit.author_name)}
                             </div>
-                            <span className="truncate text-vscode-muted">
+                            <span className="truncate text-vscode-fg text-[11px]">
                               {highlightText(commit.author_name, searchQuery)}
                             </span>
                           </div>
@@ -690,7 +690,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
                           <div
                             key={col.id}
                             style={{ width: `${col.width}px` }}
-                            className="flex-shrink-0 px-2 text-[11px] text-vscode-muted truncate"
+                            className="flex-shrink-0 px-2 text-[11px] font-mono tabular-nums text-vscode-muted truncate"
                             title={new Date(commit.author_time * 1000).toLocaleString()}
                           >
                             {dateStr}
@@ -703,7 +703,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
                           <div
                             key={col.id}
                             style={{ width: `${col.width}px` }}
-                            className="flex-shrink-0 px-2 font-mono text-[11px] text-vscode-muted truncate"
+                            className="flex-shrink-0 px-2 font-mono text-[11px] text-vscode-muted-high font-medium truncate"
                           >
                             {highlightText(commit.short_sha, searchQuery)}
                           </div>
