@@ -87,7 +87,8 @@ export const ErrorToast: React.FC<ErrorToastProps> = ({ error, onClose }) => {
   return (
     <div
       role="alert"
-      className="fixed bottom-8 right-4 z-50 flex max-w-lg flex-col rounded border border-error bg-vscode-sidebar p-3 shadow-2xl text-xs text-vscode-fg"
+      aria-live="polite"
+      className="fixed bottom-8 right-4 z-50 flex max-w-lg flex-col rounded-lg border border-error bg-vscode-sidebar p-3.5 shadow-2xl text-xs text-vscode-fg select-text"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2">
@@ -109,8 +110,10 @@ export const ErrorToast: React.FC<ErrorToastProps> = ({ error, onClose }) => {
 
         <button
           type="button"
+          title="Đóng thông báo"
+          aria-label="Đóng thông báo"
           onClick={onClose}
-          className="rounded p-1 text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg"
+          className="rounded p-1 text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg transition-colors"
         >
           <X className="h-3.5 w-3.5" />
         </button>

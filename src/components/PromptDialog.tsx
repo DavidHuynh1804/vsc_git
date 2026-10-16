@@ -49,38 +49,44 @@ export const PromptDialog: React.FC<PromptDialogProps> = ({
   }, [isOpen, onCancel, onConfirm, value]);
 
   if (!isOpen) return null;
-
   return (
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      aria-labelledby="prompt-dialog-title"
+      style={{ overscrollBehavior: "contain" }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onClick={onCancel}
     >
       <div
-        className="flex w-full max-w-md flex-col rounded border border-vscode-border bg-vscode-sidebar p-4 shadow-2xl"
+        className="flex w-full max-w-md flex-col rounded-lg border border-vscode-border bg-vscode-sidebar p-4 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-vscode-border pb-3">
-          <h3 className="text-sm font-semibold text-vscode-fg">{title}</h3>
+          <h3 id="prompt-dialog-title" className="text-sm font-semibold text-vscode-fg">{title}</h3>
           <button
             type="button"
+            aria-label="Close dialog"
             onClick={onCancel}
-            className="rounded p-1 text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg"
+            className="rounded p-1 text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg transition-colors"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
 
         <div className="my-4 flex flex-col gap-1.5">
-          {label && <label className="text-[11px] text-vscode-muted">{label}</label>}
+          {label && <label htmlFor="prompt-dialog-input" className="text-[11px] text-vscode-muted">{label}</label>}
           <input
             ref={inputRef}
+            id="prompt-dialog-input"
             type="text"
+            name="promptInput"
+            aria-label={label || title}
+            spellCheck={false}
             value={value}
             placeholder={placeholder}
             onChange={(e) => setValue(e.target.value)}
-            className="rounded border border-vscode-border bg-vscode-input px-2 py-1.5 text-xs text-vscode-fg focus:border-vscode-accent focus:outline-none"
+            className="rounded border border-vscode-border bg-vscode-input px-2.5 py-1.5 text-xs text-vscode-fg focus:border-vscode-accent focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-accent"
           />
         </div>
 

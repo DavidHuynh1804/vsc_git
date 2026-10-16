@@ -309,7 +309,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="flex flex-1 overflow-hidden min-h-0">
           {/* Section Nav Sidebar */}
           {!searchQuery && (
-            <div className="w-48 flex-shrink-0 border-r border-vscode-border bg-vscode-sidebar/40 p-2 overflow-y-auto flex flex-col gap-0.5">
+            <nav aria-label="Settings categories" className="w-48 flex-shrink-0 border-r border-vscode-border bg-vscode-sidebar/40 p-2 overflow-y-auto flex flex-col gap-0.5 select-none">
               {SECTIONS.map((sec) => {
                 const Icon = sec.icon;
                 const isActive = activeSection === sec.id;
@@ -317,6 +317,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     key={sec.id}
                     type="button"
+                    aria-label={sec.title}
+                    aria-current={isActive ? "page" : undefined}
                     onClick={() => setActiveSection(sec.id)}
                     className={`flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-left transition-colors ${
                       isActive
@@ -329,7 +331,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </button>
                 );
               })}
-            </div>
+            </nav>
           )}
 
           {/* Form Content Area */}
