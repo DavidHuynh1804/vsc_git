@@ -13,7 +13,7 @@ use crate::repo::jobs::{spawn_job, JobId};
 // History ops group
 // =========================================================================
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn cherry_pick(app: AppHandle, window: Window, sha: String) -> Result<(), AppError> {
@@ -31,7 +31,7 @@ pub fn cherry_pick(app: AppHandle, window: Window, sha: String) -> Result<(), Ap
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn revert(app: AppHandle, window: Window, sha: String) -> Result<(), AppError> {
@@ -49,7 +49,7 @@ pub fn revert(app: AppHandle, window: Window, sha: String) -> Result<(), AppErro
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn reset(app: AppHandle, window: Window, sha: String, mode: String) -> Result<(), AppError> {
@@ -68,7 +68,7 @@ pub fn reset(app: AppHandle, window: Window, sha: String, mode: String) -> Resul
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn merge(
@@ -91,7 +91,7 @@ pub fn merge(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn rebase(app: AppHandle, window: Window, ref_name: String) -> Result<(), AppError> {
@@ -109,7 +109,7 @@ pub fn rebase(app: AppHandle, window: Window, ref_name: String) -> Result<(), Ap
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn rebase_interactive(app: AppHandle, window: Window, base: String) -> Result<JobId, AppError> {
@@ -126,7 +126,7 @@ pub fn rebase_interactive(app: AppHandle, window: Window, base: String) -> Resul
     Ok(job_id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(_app, _window))]
 pub fn submit_rebase_todo(
@@ -148,7 +148,7 @@ pub fn submit_rebase_todo(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn op_continue(app: AppHandle, window: Window) -> Result<(), AppError> {
@@ -166,7 +166,7 @@ pub fn op_continue(app: AppHandle, window: Window) -> Result<(), AppError> {
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn op_skip(app: AppHandle, window: Window) -> Result<(), AppError> {
@@ -184,7 +184,7 @@ pub fn op_skip(app: AppHandle, window: Window) -> Result<(), AppError> {
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn op_abort(app: AppHandle, window: Window) -> Result<(), AppError> {
@@ -202,7 +202,7 @@ pub fn op_abort(app: AppHandle, window: Window) -> Result<(), AppError> {
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn get_operation_state(app: AppHandle, window: Window) -> Result<AppOperationState, AppError> {
@@ -217,7 +217,7 @@ pub fn get_operation_state(app: AppHandle, window: Window) -> Result<AppOperatio
 // Conflict group
 // =========================================================================
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn get_conflict(
@@ -232,7 +232,7 @@ pub fn get_conflict(
     Ok(versions.into())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn resolve_conflict(
@@ -252,7 +252,7 @@ pub fn resolve_conflict(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn resolve_with(
@@ -276,7 +276,7 @@ pub fn resolve_with(
 // Blame / history group
 // =========================================================================
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn blame(
@@ -294,7 +294,7 @@ pub fn blame(
     Ok(lines.into_iter().map(Into::into).collect())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn file_history(

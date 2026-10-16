@@ -81,7 +81,7 @@ pub fn get_global_jobs() -> &'static JobRegistry {
     unsafe { &*(lock.as_ref().unwrap() as *const JobRegistry) }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn cancel_job(_app: AppHandle, id: String) -> Result<(), AppError> {
     get_global_jobs().cancel(&id);

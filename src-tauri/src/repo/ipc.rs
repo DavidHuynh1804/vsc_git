@@ -107,7 +107,7 @@ pub fn get_ipc_addr_token() -> Option<(String, String)> {
         .map(|s| (s.addr.clone(), s.token.clone()))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn answer_prompt(_app: AppHandle, id: String, value: Option<String>) -> Result<(), AppError> {
     answer_prompt_value(&id, value);

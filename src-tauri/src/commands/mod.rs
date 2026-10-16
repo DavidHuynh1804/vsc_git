@@ -13,7 +13,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::error::AppError;
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app))]
 pub fn pick_folder(app: AppHandle) -> Result<Option<String>, AppError> {

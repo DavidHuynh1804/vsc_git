@@ -117,21 +117,21 @@ pub fn map_ai_error(err: ai::AiError, key_to_redact: Option<&str>) -> AppError {
     AppError::new(kind, msg)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(_app, key))]
 pub fn set_ai_key(_app: AppHandle, provider: String, key: String) -> Result<(), AppError> {
     save_ai_key(&provider, &key)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(_app))]
 pub fn delete_ai_key(_app: AppHandle, provider: String) -> Result<(), AppError> {
     del_ai_key(&provider)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app))]
 pub fn ai_has_consent(
@@ -150,7 +150,7 @@ pub fn ai_has_consent(
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app))]
 pub fn ai_set_consent(
@@ -230,7 +230,7 @@ pub async fn ai_list_models(
     ai_list_models_impl(provider, base_url).await
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn ai_generate_commit(app: AppHandle, window: Window) -> Result<JobId, AppError> {
@@ -339,7 +339,7 @@ pub fn ai_generate_commit(app: AppHandle, window: Window) -> Result<JobId, AppEr
     Ok(job_id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn ai_generate_pr(
@@ -471,7 +471,7 @@ pub fn ai_generate_pr(
     Ok(job_id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn ai_explain_commit(app: AppHandle, window: Window, sha: String) -> Result<JobId, AppError> {

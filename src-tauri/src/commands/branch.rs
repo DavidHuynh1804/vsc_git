@@ -12,7 +12,7 @@ use crate::repo::jobs::{spawn_job, JobId};
 // Branch / ref group
 // =========================================================================
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn list_refs(app: AppHandle, window: Window) -> Result<Vec<AppRefInfo>, AppError> {
@@ -22,7 +22,7 @@ pub fn list_refs(app: AppHandle, window: Window) -> Result<Vec<AppRefInfo>, AppE
     Ok(refs.into_iter().map(Into::into).collect())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn checkout(app: AppHandle, window: Window, ref_name: String) -> Result<(), AppError> {
@@ -45,7 +45,7 @@ pub fn checkout(app: AppHandle, window: Window, ref_name: String) -> Result<(), 
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn create_branch(
@@ -64,7 +64,7 @@ pub fn create_branch(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn rename_branch(
@@ -83,7 +83,7 @@ pub fn rename_branch(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn delete_branch(
@@ -102,7 +102,7 @@ pub fn delete_branch(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn delete_remote_branch(
@@ -125,7 +125,7 @@ pub fn delete_remote_branch(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn set_upstream(
@@ -144,7 +144,7 @@ pub fn set_upstream(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn create_tag(
@@ -164,7 +164,7 @@ pub fn create_tag(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn delete_tag(app: AppHandle, window: Window, name: String) -> Result<(), AppError> {
@@ -178,7 +178,7 @@ pub fn delete_tag(app: AppHandle, window: Window, name: String) -> Result<(), Ap
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn push_tag(
@@ -206,7 +206,7 @@ pub fn push_tag(
 // Sync group (background jobs with JobId and progress)
 // =========================================================================
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn fetch(app: AppHandle, window: Window, remote: Option<String>) -> Result<JobId, AppError> {
@@ -232,7 +232,7 @@ pub fn fetch_impl(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn pull(app: AppHandle, window: Window, mode: Option<AppPullMode>) -> Result<JobId, AppError> {
@@ -255,7 +255,7 @@ pub fn pull(app: AppHandle, window: Window, mode: Option<AppPullMode>) -> Result
     Ok(job_id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn push(
@@ -282,7 +282,7 @@ pub fn push_impl(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn sync(app: AppHandle, window: Window) -> Result<JobId, AppError> {
@@ -319,7 +319,7 @@ pub fn sync(app: AppHandle, window: Window) -> Result<JobId, AppError> {
 // Stash group
 // =========================================================================
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn list_stashes(app: AppHandle, window: Window) -> Result<Vec<AppStashEntry>, AppError> {
@@ -329,7 +329,7 @@ pub fn list_stashes(app: AppHandle, window: Window) -> Result<Vec<AppStashEntry>
     Ok(stashes.into_iter().map(Into::into).collect())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn stash_push(
@@ -348,7 +348,7 @@ pub fn stash_push(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn stash_apply(app: AppHandle, window: Window, index: u32) -> Result<(), AppError> {
@@ -363,7 +363,7 @@ pub fn stash_apply(app: AppHandle, window: Window, index: u32) -> Result<(), App
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn stash_pop(app: AppHandle, window: Window, index: u32) -> Result<(), AppError> {
@@ -378,7 +378,7 @@ pub fn stash_pop(app: AppHandle, window: Window, index: u32) -> Result<(), AppEr
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn stash_drop(app: AppHandle, window: Window, index: u32) -> Result<(), AppError> {
@@ -393,7 +393,7 @@ pub fn stash_drop(app: AppHandle, window: Window, index: u32) -> Result<(), AppE
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn stash_diff(app: AppHandle, window: Window, index: u32) -> Result<String, AppError> {
     let session = active_session(&app, &window)?;
