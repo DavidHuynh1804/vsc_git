@@ -3,6 +3,12 @@ import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import "./index.css";
+import { isMock } from "./env";
+import { setupMockIpc } from "./mockIpc";
+
+if (isMock()) {
+  setupMockIpc();
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {

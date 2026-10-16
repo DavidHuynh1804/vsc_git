@@ -41,7 +41,12 @@ export const ActivityBar: React.FC = () => {
               key={item.id}
               type="button"
               title={item.label}
-              onClick={() => setActiveActivity(item.id)}
+              onClick={() => {
+                setActiveActivity(item.id);
+                if (item.id === "graph") {
+                  openTab({ id: "graph", title: "Git Graph", closable: true });
+                }
+              }}
               className={`relative flex h-10 w-10 items-center justify-center rounded transition-colors ${
                 isActive
                   ? "text-vscode-fg bg-vscode-hover font-semibold"

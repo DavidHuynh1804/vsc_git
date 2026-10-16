@@ -121,10 +121,10 @@ export const CommitBox: React.FC = () => {
     };
 
     await commit(commitOptions);
+    void dataSource.setDraftMessage("");
     setMessage("");
     setDraftCommitMessage("");
     setIsAmend(false);
-
     if (postAction === "push") {
       await push();
     } else if (postAction === "sync") {
