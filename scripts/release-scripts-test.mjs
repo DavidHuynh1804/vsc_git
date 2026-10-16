@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCommit, generateChangelogSection } from "./changelog.mjs";
-import { parseSemver, bumpSemver } from "./bump-version.mjs";
+import { parseCommit } from "./changelog.mjs";
+import { bumpSemver } from "./bump-version.mjs";
+import { generateLatestJson } from "./generate-latest-json.mjs";
 
 test("parseCommit parses conventional commit correctly", () => {
   const line = "a1b2c3d4e5|feat(release): support auto-updater|John Doe|2026-10-16";
@@ -39,4 +40,17 @@ test("bumpSemver bumps patch, minor, major correctly", () => {
 
 test("bumpSemver rejects invalid versions", () => {
   assert.throws(() => bumpSemver("0.1.0", "invalid-version"));
+});
+
+test("generateLatestJson generates manifest with correct structure", () => {
+  const manifest = generateLatestJson({
+    version: "0.1.0",
+    notes: "Initial release",
+    pubDate: "2026-10-16T00:00:00.000Z",
+    artifactsDir: "non-existent-dir",
+  });
+
+  assert.equal(manifest.version, "0.1.0");
+  assert.equal(manifest.notes, "Initial release");
+  assert.deepEqual(manifest.platforms, {});
 });

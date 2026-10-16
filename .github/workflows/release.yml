@@ -1,0 +1,194 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag (e.g. v0.1.0)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: Create Draft Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create_release.outputs.id }}
+      tag_name: ${{ steps.resolve_tag.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve Release Tag
+        id: resolve_tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag_name }}" ]; then
+            TAG="${{ github.event.inputs.tag_name }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")
+            TAG="v${VERSION}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag: ${TAG}"
+
+      - name: Generate Changelog Notes
+        id: changelog
+        run: |
+          RAW_VERSION="${{ steps.resolve_tag.outputs.tag }}"
+          CLEAN_VERSION="${RAW_VERSION#v}"
+          node scripts/changelog.mjs --version "$CLEAN_VERSION" > RELEASE_NOTES.md
+          cat RELEASE_NOTES.md
+
+      - name: Create or Update GitHub Draft Release
+        id: create_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.resolve_tag.outputs.tag }}"
+          
+          # Check if draft release already exists for this tag
+          EXISTING_ID=$(gh release view "$TAG" --json id,isDraft -q 'select(.isDraft == true) | .id' 2>/dev/null || true)
+          
+          if [ -n "$EXISTING_ID" ]; then
+            echo "Draft release already exists with id: $EXISTING_ID"
+            echo "id=$EXISTING_ID" >> "$GITHUB_OUTPUT"
+          else
+            RELEASE_URL=$(gh release create "$TAG" \
+              --draft \
+              --title "$TAG" \
+              --notes-file RELEASE_NOTES.md)
+            
+            RELEASE_ID=$(gh release view "$TAG" --json id -q .id)
+            echo "Created draft release with id: $RELEASE_ID ($RELEASE_URL)"
+            echo "id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-tauri:
+    name: Build (${{ matrix.platform }})
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: 'macOS Universal'
+            target: 'universal-apple-darwin'
+            rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
+            args: '--target universal-apple-darwin'
+          - os: windows-latest
+            platform: 'Windows x64'
+            target: 'x86_64-pc-windows-msvc'
+            rust-targets: 'x86_64-pc-windows-msvc'
+            args: '--target x86_64-pc-windows-msvc'
+
+    steps:
+      - name: Configure Git
+        run: |
+          git config --global core.autocrlf false
+          git config --global init.defaultBranch main
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Install Node dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - name: Build Sidecars (macOS Universal)
+        if: matrix.os == 'macos-latest'
+        run: node scripts/build-sidecars.mjs --release --target universal-apple-darwin
+
+      - name: Build Sidecars (Windows x64)
+        if: matrix.os == 'windows-latest'
+        run: node scripts/build-sidecars.mjs --release --target x86_64-pc-windows-msvc
+
+      - name: Check Signing and Notarization Credentials
+        id: check_credentials
+        shell: bash
+        run: |
+          # 1. macOS Developer ID signing & Notarization
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            if [ -n "${{ secrets.APPLE_CERTIFICATE }}" ] && [ -n "${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" ] && [ -n "${{ secrets.APPLE_ID }}" ] && [ -n "${{ secrets.APPLE_PASSWORD }}" ] && [ -n "${{ secrets.APPLE_TEAM_ID }}" ]; then
+              echo "has_apple_credentials=true" >> "$GITHUB_OUTPUT"
+              echo "Apple signing and notarization credentials found."
+            else
+              echo "has_apple_credentials=false" >> "$GITHUB_OUTPUT"
+              echo "::warning::Apple signing or notarization secrets missing (APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID). Building unsigned macOS universal DMG."
+            fi
+          fi
+
+          # 2. Windows Certificate signing
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            if [ -n "${{ secrets.WINDOWS_CERTIFICATE }}" ] || [ -n "${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}" ]; then
+              echo "has_windows_credentials=true" >> "$GITHUB_OUTPUT"
+              echo "Windows signing credentials found."
+            else
+              echo "has_windows_credentials=false" >> "$GITHUB_OUTPUT"
+              echo "::warning::Windows certificate secrets missing (WINDOWS_CERTIFICATE or Azure Trusted Signing). Building unsigned Windows NSIS & MSI installers."
+            fi
+          fi
+
+          # 3. Tauri Updater key
+          if [ -n "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "has_updater_key=true" >> "$GITHUB_OUTPUT"
+            echo "TAURI_SIGNING_PRIVATE_KEY found."
+          else
+            echo "has_updater_key=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY secret not found. Updater signature signing and latest.json generation skipped."
+          fi
+
+      - name: Build and Upload Tauri App
+        uses: tauri-apps/tauri-action@action-v0.6.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ steps.check_credentials.outputs.has_apple_credentials == 'true' && secrets.APPLE_CERTIFICATE || '' }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ steps.check_credentials.outputs.has_apple_credentials == 'true' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ steps.check_credentials.outputs.has_apple_credentials == 'true' && secrets.APPLE_ID || '' }}
+          APPLE_PASSWORD: ${{ steps.check_credentials.outputs.has_apple_credentials == 'true' && secrets.APPLE_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ steps.check_credentials.outputs.has_apple_credentials == 'true' && secrets.APPLE_TEAM_ID || '' }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          tagName: ${{ needs.create-release.outputs.tag_name }}
+          releaseDraft: true
+          includeUpdaterJson: ${{ steps.check_credentials.outputs.has_updater_key == 'true' }}
+          updaterJsonPreferNsis: true
+          updaterJsonKeepUniversal: true
+          args: >-
+            ${{ matrix.args }}
+            ${{ steps.check_credentials.outputs.has_updater_key != 'true' && '--config ''{"bundle":{"createUpdaterArtifacts":false},"plugins":{"updater":{"pubkey":""}}}''' || '' }}
