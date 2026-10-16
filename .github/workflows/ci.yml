@@ -30,14 +30,22 @@ jobs:
         run: node scripts/check-crate-age.mjs
 
   check-and-build:
-    name: CI (${{ matrix.os }})
+    name: CI (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
-
+        include:
+          - os: macos-latest
+            name: macOS arm64
+            target: ''
+          - os: macos-latest
+            name: macOS x64
+            target: 'x86_64-apple-darwin'
+          - os: windows-latest
+            name: Windows x64
+            target: ''
     steps:
       - name: Configure Git
         run: |
@@ -53,6 +61,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+          targets: ${{ matrix.target || '' }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -78,17 +87,17 @@ jobs:
         run: pnpm test
 
       - name: Build Sidecars
-        run: pnpm sidecars
+        run: node scripts/build-sidecars.mjs ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
 
       - name: Rust Format Check
         run: cargo fmt --check
 
       - name: Rust Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets ${{ matrix.target && format('--target {0}', matrix.target) || '' }} -- -D warnings
 
       - name: Rust Tests (Unix)
         if: matrix.os != 'windows-latest'
-        run: cargo test --workspace
+        run: cargo test --workspace ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
 
       - name: Rust Tests (Windows)
         if: matrix.os == 'windows-latest'
@@ -109,4 +118,99 @@ jobs:
           cargo test --workspace
 
       - name: Tauri Build (Debug, No Bundle)
-        run: pnpm tauri build --debug --no-bundle
+        run: pnpm tauri build --debug --no-bundle ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
+
+      - name: App Startup Smoke Test
+        run: node scripts/smoke-startup.mjs
+
+  git-compat-2-35:
+    name: Git Compatibility (v2.35.x)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Git 2.35.2
+        id: cache-git
+        uses: actions/cache@v4
+        with:
+          path: /opt/git-2.35
+          key: git-2.35.2-ubuntu-v1
+
+      - name: Build Git 2.35.2 from source
+        if: steps.cache-git.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev libssl-dev libexpat1-dev gettext zlib1g-dev make gcc curl
+          curl -sL https://mirrors.edge.kernel.org/pub/software/scm/git/git-2.35.2.tar.gz -o git-2.35.2.tar.gz
+          tar -xzf git-2.35.2.tar.gz
+          cd git-2.35.2
+          make -j$(nproc) NO_TCLTK=1 NO_GETTEXT=1 prefix=/opt/git-2.35
+          sudo make NO_TCLTK=1 NO_GETTEXT=1 prefix=/opt/git-2.35 install
+          cd ..
+          rm -rf git-2.35.2 git-2.35.2.tar.gz
+
+      - name: Configure Git and PATH
+        run: |
+          echo "/opt/git-2.35/bin" >> $GITHUB_PATH
+          /opt/git-2.35/bin/git config --global core.autocrlf false
+          /opt/git-2.35/bin/git config --global init.defaultBranch main
+          /opt/git-2.35/bin/git config --global user.name "CI"
+          /opt/git-2.35/bin/git config --global user.email "ci@example.com"
+
+      - name: Verify Git Version
+        run: |
+          git --version
+          VERSION_OUT=$(git --version)
+          if [[ "$VERSION_OUT" != *"2.35"* ]]; then
+            echo "Expected git version 2.35.x but got: $VERSION_OUT"
+            exit 1
+          fi
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Test git crates with Git 2.35
+        run: cargo test -p git-core -p git-read -p git-graph
+
+  e2e:
+    name: E2E Playwright (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Install Node dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build Web
+        run: pnpm build
+        env:
+          VITE_USE_MOCK: "1"
+
+      - name: Run E2E Tests
+        run: pnpm e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

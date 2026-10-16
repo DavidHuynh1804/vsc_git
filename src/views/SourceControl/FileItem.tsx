@@ -93,8 +93,11 @@ export const FileItem: React.FC<FileItemProps> = ({
       tabIndex={0}
       draggable
       onDragStart={handleDragStart}
-      onClick={onSelect}
-      onDoubleClick={onOpenDiff}
+    onClick={(e) => {
+      onSelect(e);
+      onOpenDiff();
+    }}
+    onDoubleClick={onOpenDiff}
       onContextMenu={handleContextMenu}
       className={`group relative flex h-7 items-center justify-between px-3 text-xs cursor-pointer select-none transition-colors ${
         isSelected
@@ -103,7 +106,13 @@ export const FileItem: React.FC<FileItemProps> = ({
       }`}
     >
       {/* File name & dimmed directory path */}
-      <div className="flex flex-1 items-center gap-2 overflow-hidden mr-2">
+      <div
+        className="flex flex-1 items-center gap-2 overflow-hidden mr-2 cursor-pointer"
+        onClick={(e) => {
+          onSelect(e);
+          onOpenDiff();
+        }}
+      >
         <span className="font-medium truncate">{fileName}</span>
         {dirPath && (
           <span className="truncate text-[10px] text-vscode-muted font-normal">

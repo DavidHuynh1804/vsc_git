@@ -102,6 +102,12 @@ export class MockM3DataSource implements M3DataSource {
       worktree: sampleConflictWorktree,
     });
 
+    this.conflicts.set("config/settings.json", {
+      base: `{\n  "theme": "system",\n  "version": 1\n}\n`,
+      ours: `{\n  "theme": "dark",\n  "version": 2\n}\n`,
+      theirs: `{\n  "theme": "light",\n  "version": 2\n}\n`,
+      worktree: `{\n<<<<<<< HEAD\n  "theme": "dark",\n=======\n  "theme": "light",\n>>>>>>> incoming-branch\n  "version": 2\n}\n`,
+    });
     const now = Math.floor(Date.now() / 1000);
     this.blameData.set("src/App.tsx", [
       {

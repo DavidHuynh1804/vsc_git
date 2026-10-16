@@ -15,16 +15,19 @@ export function generateLatestJson({
   repoOwner = "DavidHuynh1804",
   repoName = "vsc_git",
   artifactsDir,
+  channel,
 }) {
+  const isBeta = channel === "beta" || (!channel && version && version.includes("-beta"));
+  const resolvedChannel = isBeta ? "beta" : "stable";
   const downloadBase = `https://github.com/${repoOwner}/${repoName}/releases/download/v${version}`;
 
   const manifest = {
     version,
     notes,
     pub_date: pubDate,
+    channel: resolvedChannel,
     platforms: {},
   };
-
   if (!artifactsDir || !fs.existsSync(artifactsDir)) {
     return manifest;
   }
@@ -67,13 +70,15 @@ if (isMain) {
   let version = null;
   let notes = "";
   let dir = ".";
-  let out = "latest.json";
+  let out = null;
+  let channel = null;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--version" && args[i + 1]) version = args[++i];
     else if (args[i] === "--notes" && args[i + 1]) notes = args[++i];
     else if (args[i] === "--dir" && args[i + 1]) dir = args[++i];
     else if (args[i] === "--out" && args[i + 1]) out = args[++i];
+    else if (args[i] === "--channel" && args[i + 1]) channel = args[++i];
   }
 
   if (!version) {
@@ -81,8 +86,14 @@ if (isMain) {
     version = pkg.version;
   }
 
-  const result = generateLatestJson({ version, notes, artifactsDir: dir });
+  const isBeta = channel === "beta" || (!channel && version && version.includes("-beta"));
+  const resolvedChannel = isBeta ? "beta" : "stable";
+  if (!out) {
+    out = resolvedChannel === "beta" ? "latest-beta.json" : "latest.json";
+  }
+
+  const result = generateLatestJson({ version, notes, artifactsDir: dir, channel: resolvedChannel });
   fs.writeFileSync(out, JSON.stringify(result, null, 2) + "\n", "utf-8");
-  console.log(`Generated ${out}:`);
+  console.log(`Generated ${out} (channel: ${resolvedChannel}):`);
   console.log(JSON.stringify(result, null, 2));
 }

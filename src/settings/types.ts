@@ -39,6 +39,7 @@ export interface AppSettings {
   hosts: HostConfig[];
   "ui.theme": UIThemeOption;
   "update.channel": UpdateChannelOption;
+  "update_channel"?: UpdateChannelOption;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -200,6 +201,7 @@ export function validateSetting<K extends SettingKey>(
       }
       return { valid: true };
     }
+    case "update_channel":
     case "update.channel": {
       if (typeof value !== "string" || !VALID_CHANNEL[value]) {
         return { valid: false, error: "Must be one of: 'stable', 'beta'" };

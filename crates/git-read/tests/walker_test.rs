@@ -168,3 +168,41 @@ fn test_walker_paging_and_first_parent_and_stash() {
     assert_eq!(reset_page1.commits.len(), 3);
     assert!(reset_page1.has_more);
 }
+
+#[test]
+fn test_walker_with_submodule() {
+    let sub_dir = TempDir::new().unwrap();
+    let sub_path = sub_dir.path();
+    run_git(sub_path, &["init", "-b", "main"]);
+    std::fs::write(sub_path.join("sub.txt"), "sub content\n").unwrap();
+    run_git(sub_path, &["add", "sub.txt"]);
+    run_git(sub_path, &["commit", "-m", "sub init"]);
+
+    let parent_dir = TempDir::new().unwrap();
+    let parent_path = parent_dir.path();
+    run_git(parent_path, &["init", "-b", "main"]);
+    std::fs::write(parent_path.join("root.txt"), "root content\n").unwrap();
+    run_git(parent_path, &["add", "root.txt"]);
+    run_git(parent_path, &["commit", "-m", "parent init"]);
+
+    let sub_str = sub_path.to_str().unwrap();
+    run_git(
+        parent_path,
+        &[
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            sub_str,
+            "my-sub",
+        ],
+    );
+    run_git(parent_path, &["commit", "-am", "add submodule"]);
+
+    let repo = ReadRepo::open(parent_path).expect("open repo with submodule");
+    let mut walker = GraphWalker::new(repo, GraphFilter::default()).expect("create walker");
+    let page = walker.next_page(10).expect("read graph page");
+    assert_eq!(page.commits.len(), 2);
+    assert_eq!(page.commits[0].subject, "add submodule");
+    assert_eq!(page.commits[1].subject, "parent init");
+}

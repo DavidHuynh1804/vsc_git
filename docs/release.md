@@ -14,9 +14,11 @@ Tài liệu hướng dẫn quy trình phát hành, cấu hình chữ ký số, a
   - Webview2 runtime nhúng bootstrapper (`embedBootstrapper`).
   - Ký số bằng chứng chỉ EV/OV hoặc Azure Trusted Signing.
 - **Auto-Update:** Sử dụng `tauri-plugin-updater` với manifest `latest.json` được ký bằng Minisign private key.
-  - Ứng dụng tự động kiểm tra bản cập nhật khi khởi động và định kỳ mỗi 6 giờ.
+  - Kênh cập nhật (`update_channel`): Hỗ trợ hai kênh `stable` (mặc định) và `beta`.
+    - **Stable:** Tag `v*` chính thức (vd: `v0.1.0`), tạo release chính thức và upload manifest `latest.json`.
+    - **Beta:** Tag `v*-beta.*` (vd: `v0.2.0-beta.1`), tự động đánh dấu prerelease trên GitHub và sinh manifest `latest-beta.json`.
+  - Ứng dụng tự động kiểm tra bản cập nhật khi khởi động và định kỳ mỗi 6 giờ theo kênh đã chọn trong Settings.
   - Giao diện hiển thị banner thông báo với nút **"Cập nhật & khởi động lại"**.
-
 ---
 
 ## 2. Secrets cần thiết trên GitHub Actions
@@ -124,9 +126,9 @@ git push origin v0.2.0
 3. Job `build-tauri` chạy matrix:
    - macOS runner: biên dịch sidecar universal, đóng gói `.dmg`, ký & notarize (nếu có secret).
    - Windows runner: biên dịch sidecar x64, đóng gói NSIS installer và MSI installer, ký số (nếu có secret).
-   - Nếu có `TAURI_SIGNING_PRIVATE_KEY`, sinh updater bundle (`.tar.gz`, `.zip`), ký chữ ký điện tử `.sig` và sinh file `latest.json`.
-4. Sau khi workflow hoàn tất, vào mục **Releases** trên GitHub, kiểm tra các artifact và nhấn **"Publish release"**.
-
+   - Nếu có `TAURI_SIGNING_PRIVATE_KEY`, sinh updater bundle (`.tar.gz`, `.zip`), ký chữ ký điện tử `.sig` và sinh file `latest.json` (kèm `latest-beta.json` cho bản phát hành beta `v*-beta.*`).
+4. Đối với bản beta, workflow tự động gắn cờ `--prerelease` trên GitHub Release.
+5. Sau khi workflow hoàn tất, vào mục **Releases** trên GitHub, kiểm tra các artifact và nhấn **"Publish release"**.
 ---
 
 ## 5. Quy trình Rollback (Khắc phục sự cố)

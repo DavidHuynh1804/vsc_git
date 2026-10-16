@@ -9,7 +9,7 @@ import { ImageDiffView } from "./ImageDiffView";
 import { BinaryDiffView } from "./BinaryDiffView";
 import { guessLanguageByPath } from "@/monaco/language";
 import { FileRev, LineSelection } from "@/scm/types";
-import { mapMonacoSelectionToLineSelection } from "@/scm/diffUtils";
+import { mapMonacoSelectionToLineSelection, computeHunks } from "@/scm/diffUtils";
 
 const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico"]);
 const BINARY_EXTENSIONS = new Set(["zip", "tar", "gz", "pdf", "exe", "dll", "so", "dylib", "wasm", "iso", "bin"]);
@@ -103,11 +103,22 @@ export const DiffView: React.FC<DiffViewProps> = ({ filePath, context = "unstage
   }, []);
 
   const handleStageSelection = useCallback(async () => {
-    const sel = getActiveSelection();
+    let sel = getActiveSelection();
+    if (!sel) {
+      const hunks = computeHunks(originalContent, modifiedContent);
+      if (hunks.length > 0) {
+        const first = hunks[0];
+        sel = {
+          side: "Modified",
+          start: first.modifiedStart ?? 1,
+          end: (first.modifiedStart ?? 1) + Math.max(0, first.modifiedLength - 1),
+        };
+      }
+    }
     if (!sel) return;
     await dataSource.stageSelections(filePath, [sel]);
     await refreshStatus();
-  }, [dataSource, filePath, getActiveSelection, refreshStatus]);
+  }, [dataSource, filePath, getActiveSelection, originalContent, modifiedContent, refreshStatus]);
 
   const handleUnstageSelection = useCallback(async () => {
     const sel = getActiveSelection();

@@ -5,8 +5,8 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 
 /** Commands */
 export const commands = {
-	getSettings: () => typedError<Settings, AppError>(__TAURI_INVOKE("get_settings")),
-	setSettings: (patchJson: string) => typedError<Settings, AppError>(__TAURI_INVOKE("set_settings", { patchJson })),
+	getSettings: () => typedError<Settings_Serialize, AppError>(__TAURI_INVOKE("get_settings")),
+	setSettings: (patchJson: string) => typedError<Settings_Serialize, AppError>(__TAURI_INVOKE("set_settings", { patchJson })),
 	recentRepos: () => typedError<RecentRepo[], AppError>(__TAURI_INVOKE("recent_repos")),
 	exportLogs: () => typedError<ExportedLogs, AppError>(__TAURI_INVOKE("export_logs")),
 	openRepo: (path: string) => typedError<RepoInfo, AppError>(__TAURI_INVOKE("open_repo", { path })),
@@ -16,6 +16,7 @@ export const commands = {
 } | null, AppError>(__TAURI_INVOKE("get_current_repo")),
 	gitVersion: () => typedError<string, AppError>(__TAURI_INVOKE("git_version")),
 	getGitOutput: () => typedError<GitOutputEntry[], AppError>(__TAURI_INVOKE("get_git_output")),
+	clearGitOutput: () => typedError<null, AppError>(__TAURI_INVOKE("clear_git_output")),
 	pickFolder: () => typedError<string | null, AppError>(__TAURI_INVOKE("pick_folder")),
 	cancelJob: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("cancel_job", { id })),
 	answerPrompt: (id: string, value: string | null) => typedError<null, AppError>(__TAURI_INVOKE("answer_prompt", { id, value })),
@@ -508,7 +509,9 @@ export type ScopeCheckResult = {
 	missingScopes: string[],
 };
 
-export type Settings = {
+export type Settings = Settings_Serialize | Settings_Deserialize;
+
+export type Settings_Deserialize = {
 	"git.path"?: string | null,
 	"git.autoFetch"?: boolean,
 	"git.autoFetchPeriodSec"?: number,
@@ -538,7 +541,41 @@ export type Settings = {
 	"ai.consents"?: { [key in string]: string[] },
 	hosts?: HostConfig[],
 	"ui.theme"?: string,
+} & {
 	"update.channel"?: string,
+};
+
+export type Settings_Serialize = {
+	"git.path": string | null,
+	"git.autoFetch": boolean,
+	"git.autoFetchPeriodSec": number,
+	"git.confirmSync": boolean,
+	"git.enableSmartCommit": string,
+	"git.untrackedChanges": string,
+	"git.pruneOnFetch": boolean,
+	"git.defaultCloneDir": string | null,
+	"scm.viewMode": string,
+	"diff.renderSideBySide": boolean,
+	"diff.ignoreTrimWhitespace": boolean,
+	"graph.showRemoteBranches": boolean,
+	"graph.showTags": boolean,
+	"graph.showStashes": boolean,
+	"graph.dateFormat": string,
+	"graph.pageSize": number,
+	"externalEditor.command": string,
+	"externalEditor.args": string[],
+	"ai.enabled": boolean,
+	"ai.provider": string,
+	"ai.model": string,
+	"ai.baseUrl": string | null,
+	"ai.language": string,
+	"ai.maxDiffTokens": number,
+	"ai.excludeGlobs": string[],
+	"ai.disabledRepos": string[],
+	"ai.consents": { [key in string]: string[] },
+	hosts: HostConfig[],
+	"ui.theme": string,
+	"update.channel": string,
 };
 
 export type StatusChangedEvent = {
