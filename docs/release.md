@@ -56,20 +56,24 @@ Workflow phát hành (`.github/workflows/release.yml`) được thiết kế **c
 
 ## 3. Quản lý khóa Updater (Signing Keypair)
 
-Tauri Updater sử dụng mật mã Minisign Ed25519 để đảm bảo an toàn cho các bản cập nhật.
+Tauri Updater sử dụng mật mã Minisign Ed25519 để đảm bảo an toàn và tính toàn vẹn cho các bản cập nhật.
 
-### 3.1. Tạo cặp khóa mới
-Chạy lệnh sau tại thư mục gốc repository:
+> **LƯU Ý QUAN TRỌNG VỀ PUBLIC KEY:**
+> Khóa `plugins.updater.pubkey` đang được commit trong file `src-tauri/tauri.conf.json` hoàn toàn là một **PLACEHOLDER** và đội ngũ phát triển **KHÔNG GIỮ BẤT KỲ PRIVATE KEY NÀO** tương ứng với khóa này.
+> Trước khi thực hiện bản phát hành đầu tiên (first release), người phụ trách phát hành (maintainer) **BẮT BUỘC** phải tự sinh cặp khóa mới, cập nhật lại `pubkey` trong `tauri.conf.json`, và cấu hình `TAURI_SIGNING_PRIVATE_KEY` vào GitHub Secrets.
+
+### 3.1. Tạo cặp khóa mới cho môi trường sản xuất
+Người quản trị repository chạy lệnh sau tại máy trạm cá nhân:
 ```bash
 pnpm tauri signer generate
 ```
-Lệnh sẽ xuất ra:
-1. **Public Key:** Đặt vào cấu hình `plugins.updater.pubkey` trong `src-tauri/tauri.conf.json`.
-2. **Private Key:** Lưu vào password manager an toàn và thêm vào GitHub Secret `TAURI_SIGNING_PRIVATE_KEY`.
+Lệnh sẽ sinh ra một cặp khóa:
+1. **Public Key:** Thay thế giá trị placeholder tại trường `plugins.updater.pubkey` trong file `src-tauri/tauri.conf.json` rồi commit vào git.
+2. **Private Key:** Lưu trữ an toàn trong trình quản lý mật khẩu của tổ chức và thêm vào GitHub Repository Secret với tên `TAURI_SIGNING_PRIVATE_KEY` (kèm `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` nếu có đặt mật khẩu cho khóa).
 
 > **CẢNH BÁO AN TOÀN:**
-> KHÔNG BAO GIỜ commit Private Key vào git. Nếu mất Private Key hoặc mật khẩu, bạn sẽ không thể phát hành bản cập nhật tự động cho các client hiện tại và người dùng sẽ phải tải bản cài mới thủ công.
-
+> - **TUYỆT ĐỐI KHÔNG BAO GIỜ** commit Private Key vào git hay in private key ra log CI/terminal công khai.
+> - Nếu mất Private Key hoặc mật khẩu, bạn sẽ không thể ký tiếp các bản cập nhật tự động cho client hiện tại và người dùng sẽ phải gỡ cài đặt để cài lại bản mới thủ công.
 ---
 
 ## 4. Quy trình phát hành từng bước (Step-by-step Release)
