@@ -69,8 +69,9 @@ export const BranchesView: React.FC = () => {
         <button
           type="button"
           title="Checkout"
+          aria-label={`Checkout ${branch.name}`}
           onClick={() => handleCheckout(branch.name)}
-          className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
+          className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
         >
           <GitCommitHorizontal className="h-3.5 w-3.5" />
         </button>
@@ -78,24 +79,27 @@ export const BranchesView: React.FC = () => {
       <button
         type="button"
         title="Create branch from here"
+        aria-label={`Create branch from ${branch.name}`}
         onClick={() => setDialogs((d) => ({ ...d, create: { isOpen: true } }))}
-        className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
+        className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
       >
         <Plus className="h-3.5 w-3.5" />
       </button>
       <button
         type="button"
         title="Rename branch"
+        aria-label={`Rename branch ${branch.name}`}
         onClick={() => setDialogs((d) => ({ ...d, rename: { isOpen: true, target: branch.name } }))}
-        className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
+        className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
       >
         <Pencil className="h-3.5 w-3.5" />
       </button>
       <button
         type="button"
         title="Delete branch"
+        aria-label={`Delete branch ${branch.name}`}
         onClick={() => setDialogs((d) => ({ ...d, deleteLocal: { isOpen: true, target: branch.name } }))}
-        className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-error"
+        className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-error transition-colors"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>
@@ -111,16 +115,18 @@ export const BranchesView: React.FC = () => {
           <button
             type="button"
             title="Create New Branch"
+            aria-label="Create New Branch"
             onClick={() => setDialogs((d) => ({ ...d, create: { isOpen: true } }))}
-            className="rounded p-1 hover:bg-vscode-hover hover:text-vscode-fg"
+            className="rounded p-1 hover:bg-vscode-hover hover:text-vscode-fg transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
             title="Refresh Branches"
+            aria-label="Refresh Branches"
             onClick={() => refreshRefs()}
-            className="rounded p-1 hover:bg-vscode-hover hover:text-vscode-fg"
+            className="rounded p-1 hover:bg-vscode-hover hover:text-vscode-fg transition-colors"
           >
             <RefreshCw className="h-3.5 w-3.5" />
           </button>

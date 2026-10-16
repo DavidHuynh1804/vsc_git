@@ -88,9 +88,8 @@ export const FileItem: React.FC<FileItemProps> = ({
 
   return (
     <div
-      role="treeitem"
-      aria-selected={isSelected}
-      aria-label={`${fileName}${dirPath ? ` in ${dirPath}` : ""}, ${badge.tooltip}`}
+      role="listitem"
+      title={`${fileName}${dirPath ? ` in ${dirPath}` : ""}: ${badge.tooltip}`}
       tabIndex={0}
       draggable
       onDragStart={handleDragStart}
@@ -107,7 +106,7 @@ export const FileItem: React.FC<FileItemProps> = ({
       <div className="flex flex-1 items-center gap-2 overflow-hidden mr-2">
         <span className="font-medium truncate">{fileName}</span>
         {dirPath && (
-          <span className="truncate text-[10px] text-vscode-muted opacity-70">
+          <span className="truncate text-[10px] text-vscode-muted font-normal">
             {dirPath}
           </span>
         )}

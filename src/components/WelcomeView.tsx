@@ -94,7 +94,6 @@ export const WelcomeView: React.FC = () => {
             <div className="flex flex-col gap-2">
               <button
                 type="button"
-                aria-label="Open Repository: Open an existing local Git repository"
                 onClick={handleOpenFolder}
                 className="flex items-center gap-2.5 rounded border border-vscode-border bg-vscode-input p-3 text-left hover:bg-vscode-hover hover:border-vscode-accent focus-visible:ring-1 focus-visible:ring-vscode-accent transition-colors"
               >
@@ -106,7 +105,7 @@ export const WelcomeView: React.FC = () => {
                   </span>
                 </div>
               </button>
-              <div className="flex items-center gap-2.5 rounded border border-vscode-border bg-vscode-sidebar p-3 opacity-60">
+              <div className="flex items-center gap-2.5 rounded border border-vscode-border bg-vscode-sidebar p-3">
                 <GitFork className="h-5 w-5 text-vscode-muted flex-shrink-0" />
                 <div className="flex flex-col">
                   <span className="text-xs font-medium text-vscode-fg">Clone Repository (M1)</span>

@@ -51,16 +51,18 @@ export const StashesView: React.FC = () => {
           <button
             type="button"
             title="Create Stash"
+            aria-label="Create Stash"
             onClick={() => setIsCreateOpen(true)}
-            className="rounded p-1 hover:bg-vscode-hover hover:text-vscode-fg"
+            className="rounded p-1 hover:bg-vscode-hover hover:text-vscode-fg transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
             title="Refresh Stashes"
+            aria-label="Refresh Stashes"
             onClick={() => refreshStashes()}
-            className="rounded p-1 hover:bg-vscode-hover hover:text-vscode-fg"
+            className="rounded p-1 hover:bg-vscode-hover hover:text-vscode-fg transition-colors"
           >
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
@@ -93,40 +95,45 @@ export const StashesView: React.FC = () => {
               <button
                 type="button"
                 title="Apply stash"
+                aria-label={`Apply stash ${stash.index}`}
                 onClick={() => void stashApply(stash.index)}
-                className="rounded p-1 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
+                className="rounded p-1 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
               >
                 <Play className="h-3.5 w-3.5" />
               </button>
               <button
                 type="button"
                 title="Pop stash (apply and drop)"
+                aria-label={`Pop stash ${stash.index}`}
                 onClick={() => void stashPop(stash.index)}
-                className="rounded p-1 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
+                className="rounded p-1 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
               >
                 <Forward className="h-3.5 w-3.5" />
               </button>
               <button
                 type="button"
                 title="Create branch from stash"
+                aria-label={`Create branch from stash ${stash.index}`}
                 onClick={() => handleCreateBranch(stash)}
-                className="rounded p-1 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
+                className="rounded p-1 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
               >
                 <GitBranch className="h-3.5 w-3.5" />
               </button>
               <button
                 type="button"
                 title="View stash diff"
+                aria-label={`View diff for stash ${stash.index}`}
                 onClick={() => handleViewDiff(stash)}
-                className="rounded p-1 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
+                className="rounded p-1 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
               >
                 <GitCommitHorizontal className="h-3.5 w-3.5" />
               </button>
               <button
                 type="button"
                 title="Drop stash"
+                aria-label={`Drop stash ${stash.index}`}
                 onClick={() => setConfirmDrop(stash)}
-                className="rounded p-1 hover:bg-vscode-active text-vscode-muted hover:text-error"
+                className="rounded p-1 hover:bg-vscode-active text-vscode-muted hover:text-error transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>

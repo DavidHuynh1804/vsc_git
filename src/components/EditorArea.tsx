@@ -147,7 +147,15 @@ export const EditorArea: React.FC = () => {
       </div>
 
       {/* Editor Content */}
-      <div className="flex-1 overflow-auto">{currentTab && renderTabContent(currentTab)}</div>
+      <div
+        id={currentTab ? `tabpanel-${currentTab.id}` : undefined}
+        role="tabpanel"
+        aria-labelledby={currentTab ? `tab-${currentTab.id}` : undefined}
+        tabIndex={0}
+        className="flex-1 overflow-auto outline-none"
+      >
+        {currentTab && renderTabContent(currentTab)}
+      </div>
     </main>
   );
 };

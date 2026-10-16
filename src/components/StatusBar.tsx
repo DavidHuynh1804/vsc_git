@@ -51,8 +51,7 @@ export const StatusBar: React.FC = () => {
         <button
           type="button"
           onClick={() => void sync()}
-          title="Sync with remote (Click to pull and push)"
-          aria-label={`Sync with remote: ${behind} commits behind, ${ahead} commits ahead`}
+          title={`Sync with remote: ${behind} commits behind, ${ahead} commits ahead`}
           className="inline-flex items-center gap-1 hover:bg-white/10 active:bg-white/20 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
         >
           <RefreshCw className="h-2.5 w-2.5" />

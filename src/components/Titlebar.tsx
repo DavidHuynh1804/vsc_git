@@ -42,7 +42,7 @@ export const Titlebar: React.FC = () => {
         <button
           type="button"
           onClick={toggleCommandPalette}
-          aria-label="Search commands"
+          title="Search commands"
           className="flex h-6 w-full items-center justify-between rounded border border-vscode-border bg-vscode-input px-3 text-vscode-muted hover:text-vscode-fg hover:bg-vscode-hover focus-visible:ring-1 focus-visible:ring-vscode-accent transition-colors"
         >
           <div className="flex items-center gap-2 truncate">
@@ -59,7 +59,6 @@ export const Titlebar: React.FC = () => {
         {repoName && (
           <button
             type="button"
-            aria-label="Sync changes"
             title="Sync changes"
             className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-vscode-muted hover:text-vscode-fg hover:bg-vscode-hover transition-colors"
           >

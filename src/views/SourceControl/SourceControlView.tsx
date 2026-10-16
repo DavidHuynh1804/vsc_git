@@ -169,7 +169,7 @@ export const SourceControlView: React.FC = () => {
       <CommitBox />
 
       {/* Scrollable File Groups */}
-      <div role="tree" aria-label="Source Control changes tree" className="flex-1 overflow-y-auto">
+      <div role="region" aria-label="Source Control changes" className="flex-1 overflow-y-auto">
         {/* Merge Changes Group */}
         {mergeEntries.length > 0 && (
           <div className="flex flex-col border-b border-vscode-border/50">
@@ -200,7 +200,7 @@ export const SourceControlView: React.FC = () => {
             </div>
 
             {isMergeOpen && (
-              <div role="group" aria-label="Merge changes" className="flex flex-col">
+              <div role="list" aria-label="Merge changes" className="flex flex-col">
                 {mergeEntries.map((entry) => (
                   <FileItem
                     key={entry.path}
@@ -274,7 +274,7 @@ export const SourceControlView: React.FC = () => {
           </div>
 
           {isStagedOpen && (
-            <div role="group" aria-label="Staged changes" className="flex flex-col">
+            <div role="list" aria-label="Staged changes" className="flex flex-col">
               {stagedEntries.map((entry) => (
                 <FileItem
                   key={entry.path}
@@ -364,7 +364,7 @@ export const SourceControlView: React.FC = () => {
           </div>
 
           {isChangesOpen && (
-            <div role="group" aria-label="Unstaged changes" className="flex flex-col">
+            <div role="list" aria-label="Unstaged changes" className="flex flex-col">
               {changesEntries.map((entry) => (
                 <FileItem
                   key={entry.path}
@@ -449,7 +449,7 @@ export const SourceControlView: React.FC = () => {
           </div>
 
           {isUntrackedOpen && (
-            <div role="group" aria-label="Untracked changes" className="flex flex-col">
+            <div role="list" aria-label="Untracked changes" className="flex flex-col">
                 {untrackedEntries.map((entry) => (
                   <FileItem
                     key={entry.path}
