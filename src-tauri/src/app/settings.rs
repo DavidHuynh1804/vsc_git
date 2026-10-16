@@ -308,7 +308,7 @@ pub fn patch_settings_value(
     Ok(updated)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn get_settings(app: AppHandle) -> Result<Settings, AppError> {
     let config_dir = app
@@ -318,7 +318,7 @@ pub fn get_settings(app: AppHandle) -> Result<Settings, AppError> {
     load_settings_from_dir(&config_dir)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn set_settings(app: AppHandle, patch_json: String) -> Result<Settings, AppError> {
     let config_dir = app

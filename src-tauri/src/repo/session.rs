@@ -97,7 +97,7 @@ pub fn check_git_version_requirement(major: u32, minor: u32) -> Result<(), AppEr
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn git_version(_app: AppHandle) -> Result<String, AppError> {
     let cli = create_git_cli();
@@ -105,7 +105,7 @@ pub fn git_version(_app: AppHandle) -> Result<String, AppError> {
     Ok(format!("{}.{}.{}", ver.major, ver.minor, ver.patch))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn open_repo(app: AppHandle, window: Window, path: String) -> Result<RepoInfo, AppError> {
     let repo_path = Path::new(&path);
@@ -180,7 +180,7 @@ pub fn open_repo(app: AppHandle, window: Window, path: String) -> Result<RepoInf
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn get_current_repo(app: AppHandle, window: Window) -> Result<Option<RepoInfo>, AppError> {
     if let Some(state) = app.try_state::<SessionState>() {

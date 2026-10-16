@@ -6,7 +6,7 @@ use crate::error::AppError;
 use crate::git_exec::create_git_cli;
 use crate::repo::jobs::{spawn_job, JobId};
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn graph_reset(
@@ -22,7 +22,7 @@ pub fn graph_reset(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn graph_page(
@@ -45,7 +45,7 @@ pub fn graph_page(
     Ok(page.into())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn commit_detail(
@@ -59,7 +59,7 @@ pub fn commit_detail(
     Ok(detail.into())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn compare(
@@ -74,7 +74,7 @@ pub fn compare(
     Ok(changes.into_iter().map(Into::into).collect())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn graph_search(app: AppHandle, window: Window, query: String) -> Result<JobId, AppError> {

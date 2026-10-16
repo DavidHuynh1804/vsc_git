@@ -19,7 +19,7 @@ pub fn set_trash_handler_for_test(handler: Option<TrashHandler>) {
 // Status group
 // =========================================================================
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn get_status(app: AppHandle, window: Window) -> Result<AppRepoStatus, AppError> {
@@ -36,7 +36,7 @@ pub fn get_status_impl(
     Ok(status.into())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn refresh(app: AppHandle, window: Window) -> Result<AppRepoStatus, AppError> {
@@ -47,7 +47,7 @@ pub fn refresh(app: AppHandle, window: Window) -> Result<AppRepoStatus, AppError
 // Stage group
 // =========================================================================
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn stage(app: AppHandle, window: Window, paths: Vec<String>) -> Result<(), AppError> {
@@ -67,7 +67,7 @@ pub fn stage(app: AppHandle, window: Window, paths: Vec<String>) -> Result<(), A
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn unstage(app: AppHandle, window: Window, paths: Vec<String>) -> Result<(), AppError> {
@@ -87,7 +87,7 @@ pub fn unstage(app: AppHandle, window: Window, paths: Vec<String>) -> Result<(),
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn discard(app: AppHandle, window: Window, paths: Vec<String>) -> Result<(), AppError> {
@@ -151,7 +151,7 @@ pub fn discard_impl(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn stage_all(app: AppHandle, window: Window) -> Result<(), AppError> {
@@ -165,7 +165,7 @@ pub fn stage_all(app: AppHandle, window: Window) -> Result<(), AppError> {
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn unstage_all(app: AppHandle, window: Window) -> Result<(), AppError> {
@@ -179,7 +179,7 @@ pub fn unstage_all(app: AppHandle, window: Window) -> Result<(), AppError> {
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn stage_selections(
@@ -208,7 +208,7 @@ pub fn stage_selections_impl(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn unstage_selections(
@@ -229,7 +229,7 @@ pub fn unstage_selections(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn revert_selections(
@@ -254,7 +254,7 @@ pub fn revert_selections(
 // Nội dung (Content) group
 // =========================================================================
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn get_file_content(
@@ -291,7 +291,7 @@ pub fn get_file_content(
     Ok(String::from_utf8_lossy(&bytes).to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn save_worktree_file(
@@ -318,7 +318,7 @@ pub fn save_worktree_file(
 // Commit group
 // =========================================================================
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn commit(app: AppHandle, window: Window, options: AppCommitOptions) -> Result<(), AppError> {
@@ -342,7 +342,7 @@ pub fn commit_impl(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn last_commit_message(app: AppHandle, window: Window) -> Result<String, AppError> {
@@ -358,7 +358,7 @@ pub fn last_commit_message_impl(
     Ok(msg)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn get_draft_message(app: AppHandle, window: Window) -> Result<String, AppError> {
@@ -366,7 +366,7 @@ pub fn get_draft_message(app: AppHandle, window: Window) -> Result<String, AppEr
     let msg = session.draft_message.read().clone();
     Ok(msg)
 }
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn set_draft_message(app: AppHandle, window: Window, message: String) -> Result<(), AppError> {

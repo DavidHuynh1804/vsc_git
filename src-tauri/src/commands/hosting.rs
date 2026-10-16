@@ -334,7 +334,7 @@ fn build_host_client(
     Ok(client)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn host_info(app: AppHandle, window: Window) -> Result<Option<HostInfo>, AppError> {
@@ -399,14 +399,14 @@ pub fn host_info(app: AppHandle, window: Window) -> Result<Option<HostInfo>, App
     }))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(_app, token))]
 pub fn set_host_token(_app: AppHandle, host: String, token: String) -> Result<(), AppError> {
     save_token(&host, &token)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(_app))]
 pub fn delete_host_token(_app: AppHandle, host: String) -> Result<(), AppError> {
@@ -623,7 +623,7 @@ pub async fn search_reviewers(
     Ok(reviewers.into_iter().map(Into::into).collect())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, window))]
 pub fn check_branch_pushed(

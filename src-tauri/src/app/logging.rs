@@ -143,7 +143,7 @@ pub fn export_logs_from_dir(log_dir: &Path) -> Result<ExportedLogs, AppError> {
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn export_logs(app: AppHandle) -> Result<ExportedLogs, AppError> {
     let log_dir = app

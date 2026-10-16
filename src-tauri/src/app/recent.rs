@@ -74,7 +74,7 @@ pub fn add_recent_repo(config_dir: &Path, repo_path: &str) -> Result<Vec<RecentR
     Ok(list)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn recent_repos(app: AppHandle) -> Result<Vec<RecentRepo>, AppError> {
     let config_dir = app

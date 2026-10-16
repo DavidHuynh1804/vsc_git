@@ -166,13 +166,13 @@ fn exit_status_from_code(code: i32) -> std::process::ExitStatus {
     std::process::ExitStatus::from_raw(code as u32)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn get_git_output() -> Result<Vec<GitOutputEntry>, AppError> {
     Ok(get_global_buffer().get_entries())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn clear_git_output() -> Result<(), AppError> {
     get_global_buffer().clear();

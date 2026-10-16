@@ -9,7 +9,7 @@ use crate::git_exec::create_git_cli;
 use crate::repo::jobs::{spawn_job, JobId};
 use crate::repo::session::RepoInfo;
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app, _window))]
 pub fn open_in_editor(
@@ -41,7 +41,7 @@ pub fn open_in_editor(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(_app, _window))]
 pub fn reveal_in_file_manager(
@@ -86,7 +86,7 @@ pub fn reveal_in_file_manager(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument]
 pub fn open_url(url: String) -> Result<(), AppError> {
@@ -124,7 +124,7 @@ pub fn open_url(url: String) -> Result<(), AppError> {
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument]
 pub fn init_repo(path: String) -> Result<RepoInfo, AppError> {
@@ -143,7 +143,7 @@ pub fn init_repo(path: String) -> Result<RepoInfo, AppError> {
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 #[tracing::instrument(skip(app))]
 pub fn clone_repo(app: AppHandle, url: String, dir: String) -> Result<JobId, AppError> {
