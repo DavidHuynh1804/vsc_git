@@ -14,6 +14,7 @@ import { defaultHostingDataSource } from "@/integrations/hosting";
 import { AiSection } from "./AiSection";
 import { HostsSection } from "./HostsSection";
 import { ListEditor } from "./ListEditor";
+import { useUIStore } from "@/stores/ui";
 import {
   Search,
   RotateCcw,
@@ -805,15 +806,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     settingKey="ui.theme"
                     description="Color theme matching VS Code Modern styles."
                     modified={isSettingModified("ui.theme", settings)}
-                    onReset={() => handleResetSetting("ui.theme")}
+                    onReset={() => {
+                      handleResetSetting("ui.theme");
+                      useUIStore.getState().setTheme(DEFAULT_SETTINGS["ui.theme"]);
+                    }}
                   >
                     <select
                       value={settings["ui.theme"]}
-                      onChange={(e) =>
-                        handleUpdate({
-                          "ui.theme": e.target.value as AppSettings["ui.theme"],
-                        })
-                      }
+                      aria-label="UI Theme"
+                      onChange={(e) => {
+                        const val = e.target.value as AppSettings["ui.theme"];
+                        handleUpdate({ "ui.theme": val });
+                        useUIStore.getState().setTheme(val);
+                      }}
                       className="w-48 rounded border border-vscode-border bg-vscode-input px-2.5 py-1.5 text-xs text-vscode-fg focus:border-vscode-accent focus:outline-none"
                     >
                       <option value="system">Follow System</option>

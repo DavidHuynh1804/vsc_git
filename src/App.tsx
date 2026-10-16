@@ -17,9 +17,24 @@ import { UpdateNotification } from "@/components/UpdateNotification";
 
 export default function App() {
   const { error, setError, setRepo, headBranch, repoRoot } = useRepoStore();
-  const { isCreatePrOpen, setCreatePrOpen } = useUIStore();
+  const { isCreatePrOpen, setCreatePrOpen, theme, setTheme } = useUIStore();
   const { error: scmError, setError: setScmError } = useScmStore();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Initialize theme and respond to system color scheme changes
+  useEffect(() => {
+    setTheme(theme);
+    if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+      const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+      const handleChange = () => {
+        if (useUIStore.getState().theme === "system") {
+          setTheme("system");
+        }
+      };
+      mediaQuery.addEventListener?.("change", handleChange);
+      return () => mediaQuery.removeEventListener?.("change", handleChange);
+    }
+  }, [theme, setTheme]);
 
   // Check initial opened repo if any
   useEffect(() => {
