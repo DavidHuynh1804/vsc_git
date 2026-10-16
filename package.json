@@ -13,7 +13,9 @@
     "lint": "eslint .",
     "typecheck": "tsc -b",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "changelog": "node scripts/changelog.mjs --write",
+    "bump-version": "node scripts/bump-version.mjs"
   },
   "dependencies": {
     "@monaco-editor/react": "4.7.0",
