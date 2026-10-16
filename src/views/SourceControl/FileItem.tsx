@@ -89,6 +89,9 @@ export const FileItem: React.FC<FileItemProps> = ({
   return (
     <div
       role="treeitem"
+      aria-selected={isSelected}
+      aria-label={`${fileName}${dirPath ? ` in ${dirPath}` : ""}, ${badge.tooltip}`}
+      tabIndex={0}
       draggable
       onDragStart={handleDragStart}
       onClick={onSelect}
@@ -111,14 +114,15 @@ export const FileItem: React.FC<FileItemProps> = ({
       </div>
 
       {/* Right side: inline actions on hover, badge on normal */}
-      <div className="flex items-center gap-1.5 flex-shrink-0">
-        <div className="hidden group-hover:flex items-center gap-1">
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="hidden group-hover:flex items-center gap-0.5">
           {context === "staged" ? (
             <button
               type="button"
               title="Unstage changes"
+              aria-label="Unstage changes"
               onClick={handleUnstage}
-              className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
+              className="rounded p-1 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
             >
               <Minus className="h-3.5 w-3.5" />
             </button>
@@ -127,16 +131,18 @@ export const FileItem: React.FC<FileItemProps> = ({
               <button
                 type="button"
                 title="Stage changes"
+                aria-label="Stage changes"
                 onClick={handleStage}
-                className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
+                className="rounded p-1 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
               >
                 <Plus className="h-3.5 w-3.5" />
               </button>
               <button
                 type="button"
                 title="Discard changes"
+                aria-label="Discard changes"
                 onClick={handleDiscard}
-                className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
+                className="rounded p-1 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
               </button>
@@ -146,8 +152,9 @@ export const FileItem: React.FC<FileItemProps> = ({
           <button
             type="button"
             title="Open in external editor"
+            aria-label="Open in external editor"
             onClick={handleOpenExternal}
-            className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
+            className="rounded p-1 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
           >
             <ExternalLink className="h-3.5 w-3.5" />
           </button>
@@ -155,11 +162,14 @@ export const FileItem: React.FC<FileItemProps> = ({
           <button
             type="button"
             title="More actions"
+            aria-label="More actions"
+            aria-haspopup="true"
+            aria-expanded={showMenu}
             onClick={(e) => {
               e.stopPropagation();
               setShowMenu(!showMenu);
             }}
-            className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
+            className="rounded p-1 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
           >
             <MoreHorizontal className="h-3.5 w-3.5" />
           </button>
