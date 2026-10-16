@@ -14,6 +14,7 @@ use crate::repo::jobs::{spawn_job, JobId};
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn list_refs(app: AppHandle, window: Window) -> Result<Vec<AppRefInfo>, AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -23,6 +24,7 @@ pub fn list_refs(app: AppHandle, window: Window) -> Result<Vec<AppRefInfo>, AppE
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn checkout(app: AppHandle, window: Window, ref_name: String) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -45,6 +47,7 @@ pub fn checkout(app: AppHandle, window: Window, ref_name: String) -> Result<(), 
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn create_branch(
     app: AppHandle,
     window: Window,
@@ -63,6 +66,7 @@ pub fn create_branch(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn rename_branch(
     app: AppHandle,
     window: Window,
@@ -81,6 +85,7 @@ pub fn rename_branch(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn delete_branch(
     app: AppHandle,
     window: Window,
@@ -99,6 +104,7 @@ pub fn delete_branch(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn delete_remote_branch(
     app: AppHandle,
     window: Window,
@@ -121,6 +127,7 @@ pub fn delete_remote_branch(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn set_upstream(
     app: AppHandle,
     window: Window,
@@ -139,6 +146,7 @@ pub fn set_upstream(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn create_tag(
     app: AppHandle,
     window: Window,
@@ -158,6 +166,7 @@ pub fn create_tag(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn delete_tag(app: AppHandle, window: Window, name: String) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -171,6 +180,7 @@ pub fn delete_tag(app: AppHandle, window: Window, name: String) -> Result<(), Ap
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn push_tag(
     app: AppHandle,
     window: Window,
@@ -198,6 +208,7 @@ pub fn push_tag(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn fetch(app: AppHandle, window: Window, remote: Option<String>) -> Result<JobId, AppError> {
     let session = active_session(&app, &window)?;
     let (job_id, _) = spawn_job(app, move |cancel_token, progress_cb| {
@@ -223,6 +234,7 @@ pub fn fetch_impl(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn pull(app: AppHandle, window: Window, mode: Option<AppPullMode>) -> Result<JobId, AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -245,6 +257,7 @@ pub fn pull(app: AppHandle, window: Window, mode: Option<AppPullMode>) -> Result
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn push(
     app: AppHandle,
     window: Window,
@@ -271,6 +284,7 @@ pub fn push_impl(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn sync(app: AppHandle, window: Window) -> Result<JobId, AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -307,6 +321,7 @@ pub fn sync(app: AppHandle, window: Window) -> Result<JobId, AppError> {
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn list_stashes(app: AppHandle, window: Window) -> Result<Vec<AppStashEntry>, AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -316,6 +331,7 @@ pub fn list_stashes(app: AppHandle, window: Window) -> Result<Vec<AppStashEntry>
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn stash_push(
     app: AppHandle,
     window: Window,
@@ -334,6 +350,7 @@ pub fn stash_push(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn stash_apply(app: AppHandle, window: Window, index: u32) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -348,6 +365,7 @@ pub fn stash_apply(app: AppHandle, window: Window, index: u32) -> Result<(), App
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn stash_pop(app: AppHandle, window: Window, index: u32) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -362,6 +380,7 @@ pub fn stash_pop(app: AppHandle, window: Window, index: u32) -> Result<(), AppEr
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn stash_drop(app: AppHandle, window: Window, index: u32) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();

@@ -15,7 +15,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "changelog": "node scripts/changelog.mjs --write",
-    "bump-version": "node scripts/bump-version.mjs"
+    "bump-version": "node scripts/bump-version.mjs",
+    "bench": "node scripts/bench/run-bench.mjs"
   },
   "dependencies": {
     "@monaco-editor/react": "4.7.0",

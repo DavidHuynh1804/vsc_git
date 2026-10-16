@@ -11,6 +11,7 @@ use crate::repo::session::RepoInfo;
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, _window))]
 pub fn open_in_editor(
     app: AppHandle,
     _window: Window,
@@ -42,6 +43,7 @@ pub fn open_in_editor(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(_app, _window))]
 pub fn reveal_in_file_manager(
     _app: AppHandle,
     _window: Window,
@@ -86,6 +88,7 @@ pub fn reveal_in_file_manager(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument]
 pub fn open_url(url: String) -> Result<(), AppError> {
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err(AppError::new(
@@ -123,6 +126,7 @@ pub fn open_url(url: String) -> Result<(), AppError> {
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument]
 pub fn init_repo(path: String) -> Result<RepoInfo, AppError> {
     let p = Path::new(&path);
     if !p.exists() {
@@ -141,6 +145,7 @@ pub fn init_repo(path: String) -> Result<RepoInfo, AppError> {
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app))]
 pub fn clone_repo(app: AppHandle, url: String, dir: String) -> Result<JobId, AppError> {
     let cli = create_git_cli();
 

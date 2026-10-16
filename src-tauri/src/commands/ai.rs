@@ -119,18 +119,21 @@ pub fn map_ai_error(err: ai::AiError, key_to_redact: Option<&str>) -> AppError {
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(_app, key))]
 pub fn set_ai_key(_app: AppHandle, provider: String, key: String) -> Result<(), AppError> {
     save_ai_key(&provider, &key)
 }
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(_app))]
 pub fn delete_ai_key(_app: AppHandle, provider: String) -> Result<(), AppError> {
     del_ai_key(&provider)
 }
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app))]
 pub fn ai_has_consent(
     app: AppHandle,
     repo_path: String,
@@ -149,6 +152,7 @@ pub fn ai_has_consent(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app))]
 pub fn ai_set_consent(
     app: AppHandle,
     repo_path: String,
@@ -228,6 +232,7 @@ pub async fn ai_list_models(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn ai_generate_commit(app: AppHandle, window: Window) -> Result<JobId, AppError> {
     let session = active_session(&app, &window)?;
     let settings = get_settings(app.clone()).unwrap_or_default();
@@ -336,6 +341,7 @@ pub fn ai_generate_commit(app: AppHandle, window: Window) -> Result<JobId, AppEr
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn ai_generate_pr(
     app: AppHandle,
     window: Window,
@@ -467,6 +473,7 @@ pub fn ai_generate_pr(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn ai_explain_commit(app: AppHandle, window: Window, sha: String) -> Result<JobId, AppError> {
     let session = active_session(&app, &window)?;
     let settings = get_settings(app.clone()).unwrap_or_default();

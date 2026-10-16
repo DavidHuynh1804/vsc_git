@@ -21,6 +21,7 @@ pub fn set_trash_handler_for_test(handler: Option<TrashHandler>) {
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn get_status(app: AppHandle, window: Window) -> Result<AppRepoStatus, AppError> {
     let session = active_session(&app, &window)?;
     get_status_impl(&session)
@@ -37,6 +38,7 @@ pub fn get_status_impl(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn refresh(app: AppHandle, window: Window) -> Result<AppRepoStatus, AppError> {
     get_status(app, window)
 }
@@ -47,6 +49,7 @@ pub fn refresh(app: AppHandle, window: Window) -> Result<AppRepoStatus, AppError
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn stage(app: AppHandle, window: Window, paths: Vec<String>) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -66,6 +69,7 @@ pub fn stage(app: AppHandle, window: Window, paths: Vec<String>) -> Result<(), A
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn unstage(app: AppHandle, window: Window, paths: Vec<String>) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -85,6 +89,7 @@ pub fn unstage(app: AppHandle, window: Window, paths: Vec<String>) -> Result<(),
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn discard(app: AppHandle, window: Window, paths: Vec<String>) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     discard_impl(&session, &paths)
@@ -148,6 +153,7 @@ pub fn discard_impl(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn stage_all(app: AppHandle, window: Window) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -161,6 +167,7 @@ pub fn stage_all(app: AppHandle, window: Window) -> Result<(), AppError> {
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn unstage_all(app: AppHandle, window: Window) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -174,6 +181,7 @@ pub fn unstage_all(app: AppHandle, window: Window) -> Result<(), AppError> {
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn stage_selections(
     app: AppHandle,
     window: Window,
@@ -202,6 +210,7 @@ pub fn stage_selections_impl(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn unstage_selections(
     app: AppHandle,
     window: Window,
@@ -222,6 +231,7 @@ pub fn unstage_selections(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn revert_selections(
     app: AppHandle,
     window: Window,
@@ -246,6 +256,7 @@ pub fn revert_selections(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn get_file_content(
     app: AppHandle,
     window: Window,
@@ -282,6 +293,7 @@ pub fn get_file_content(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn save_worktree_file(
     app: AppHandle,
     window: Window,
@@ -308,6 +320,7 @@ pub fn save_worktree_file(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn commit(app: AppHandle, window: Window, options: AppCommitOptions) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     commit_impl(&session, options)
@@ -331,6 +344,7 @@ pub fn commit_impl(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn last_commit_message(app: AppHandle, window: Window) -> Result<String, AppError> {
     let session = active_session(&app, &window)?;
     last_commit_message_impl(&session)
@@ -346,6 +360,7 @@ pub fn last_commit_message_impl(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn get_draft_message(app: AppHandle, window: Window) -> Result<String, AppError> {
     let session = active_session(&app, &window)?;
     let msg = session.draft_message.read().clone();
@@ -353,6 +368,7 @@ pub fn get_draft_message(app: AppHandle, window: Window) -> Result<String, AppEr
 }
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn set_draft_message(app: AppHandle, window: Window, message: String) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     *session.draft_message.write() = message;
