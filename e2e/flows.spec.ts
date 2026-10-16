@@ -8,22 +8,22 @@ test.describe("vsc_git core user flows (web mock)", () => {
 
   test("Flow 1: open repo -> stage hunk -> commit", async ({ page }) => {
     // 1. Verify repo is opened and source control shows unstaged changes
-    await expect(page.getByText("CHANGES", { exact: true })).toBeVisible({ timeout: 10000 });
-    const appTsItem = page.getByRole("treeitem").filter({ hasText: "app.ts" }).first();
+    const unstagedList = page.getByRole("list", { name: "Unstaged changes" });
+    await expect(unstagedList).toBeVisible({ timeout: 10000 });
+    const appTsItem = unstagedList.getByRole("listitem").filter({ hasText: "app.ts" }).first();
     await expect(appTsItem).toBeVisible();
 
     // 2. Open file in Diff editor
-    await appTsItem.click();
+    await appTsItem.getByText("app.ts").click();
 
     // 3. Click Stage Ranges to stage hunk
-    const stageRangesBtn = page.getByRole("button", { name: /Stage Ranges/i });
-    await expect(stageRangesBtn).toBeVisible();
+    const stageRangesBtn = page.getByRole("button", { name: /Stage Selected Ranges/i });
+    await expect(stageRangesBtn).toBeVisible({ timeout: 10000 });
     await stageRangesBtn.click();
 
     // 4. Verify file appears in STAGED CHANGES
-    await expect(page.getByText("STAGED CHANGES")).toBeVisible();
-    const stagedSection = page.locator("div").filter({ hasText: /STAGED CHANGES/i });
-    await expect(stagedSection.getByText("app.ts").first()).toBeVisible();
+    const stagedList = page.getByRole("list", { name: "Staged changes" });
+    await expect(stagedList.getByText("app.ts").first()).toBeVisible();
 
     // 5. Enter commit message in CommitBox and commit
     const commitInput = page.getByPlaceholder(/Message \(Cmd\+Enter to commit\)/i);
@@ -63,12 +63,13 @@ test.describe("vsc_git core user flows (web mock)", () => {
 
   test("Flow 3: resolve conflict in merge editor", async ({ page }) => {
     // 1. In Source Control, locate conflict file under MERGE CHANGES
-    await expect(page.getByText("MERGE CHANGES")).toBeVisible({ timeout: 10000 });
-    const conflictItem = page.getByRole("treeitem").filter({ hasText: "settings.json" }).first();
+    const mergeList = page.getByRole("list", { name: "Merge changes" });
+    await expect(mergeList).toBeVisible({ timeout: 10000 });
+    const conflictItem = mergeList.getByRole("listitem").filter({ hasText: "settings.json" }).first();
     await expect(conflictItem).toBeVisible();
 
     // 2. Click to open Merge Editor
-    await conflictItem.click();
+    await conflictItem.getByText("settings.json").click();
 
     // 3. In Merge Editor, click "Accept Current"
     const acceptCurrentBtn = page.getByRole("button", { name: /Accept Current/i });
