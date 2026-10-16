@@ -25,9 +25,6 @@
       "csp": "default-src 'self'; worker-src blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: https://asset.localhost blob: data:"
     }
   },
-  "plugins": {
-    "dialog": {}
-  },
   "bundle": {
     "externalBin": [
       "binaries/vsc-git-askpass",
