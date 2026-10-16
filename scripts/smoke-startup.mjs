@@ -14,7 +14,9 @@ const binaryName = isWindows ? "vsc_git.exe" : "vsc_git";
 
 const candidates = [
   path.join(repoRoot, "target", "debug", binaryName),
+  path.join(repoRoot, "target", "x86_64-apple-darwin", "debug", binaryName),
   path.join(repoRoot, "src-tauri", "target", "debug", binaryName),
+  path.join(repoRoot, "src-tauri", "target", "x86_64-apple-darwin", "debug", binaryName),
 ];
 
 if (process.argv[2]) {

@@ -30,13 +30,22 @@ jobs:
         run: node scripts/check-crate-age.mjs
 
   check-and-build:
-    name: CI (${{ matrix.os }})
+    name: CI (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, macos-13, windows-latest]
+        include:
+          - os: macos-latest
+            name: macOS arm64
+            target: ''
+          - os: macos-latest
+            name: macOS x64
+            target: 'x86_64-apple-darwin'
+          - os: windows-latest
+            name: Windows x64
+            target: ''
     steps:
       - name: Configure Git
         run: |
@@ -52,6 +61,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+          targets: ${{ matrix.target || '' }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -77,17 +87,17 @@ jobs:
         run: pnpm test
 
       - name: Build Sidecars
-        run: pnpm sidecars
+        run: node scripts/build-sidecars.mjs ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
 
       - name: Rust Format Check
         run: cargo fmt --check
 
       - name: Rust Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets ${{ matrix.target && format('--target {0}', matrix.target) || '' }} -- -D warnings
 
       - name: Rust Tests (Unix)
         if: matrix.os != 'windows-latest'
-        run: cargo test --workspace
+        run: cargo test --workspace ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
 
       - name: Rust Tests (Windows)
         if: matrix.os == 'windows-latest'
@@ -108,7 +118,7 @@ jobs:
           cargo test --workspace
 
       - name: Tauri Build (Debug, No Bundle)
-        run: pnpm tauri build --debug --no-bundle
+        run: pnpm tauri build --debug --no-bundle ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
 
       - name: App Startup Smoke Test
         run: node scripts/smoke-startup.mjs
