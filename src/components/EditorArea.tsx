@@ -13,6 +13,8 @@ import { useScmStore } from "@/scm/scmStore";
 import { useRepoStore } from "@/stores/repo";
 import { SettingsView } from "@/views/Settings/SettingsView";
 import { defaultSettingsDataSource } from "@/settings";
+import { GitTimingsView } from "@/views/Debug/GitTimingsView";
+import { commands } from "@/bindings";
 
 export const EditorArea: React.FC = () => {
   const { tabs, activeTabId, setActiveTabId, closeTab } = useUIStore();
@@ -30,6 +32,11 @@ export const EditorArea: React.FC = () => {
         closable: true,
         baseSha: sha,
       });
+    } else if (action.type === "cherry-pick") {
+      const sha = typeof action.payload?.sha === "string" ? action.payload.sha : undefined;
+      if (sha) {
+        void commands.cherryPick(sha);
+      }
     }
   };
 
@@ -41,6 +48,10 @@ export const EditorArea: React.FC = () => {
     if (tab.id === "settings") {
       return <SettingsView dataSource={defaultSettingsDataSource} />;
     }
+    if (tab.id === "git-timings") {
+      return <GitTimingsView />;
+    }
+
 
     if (tab.id === "graph") {
       return <GraphView onAction={handleGraphAction} />;

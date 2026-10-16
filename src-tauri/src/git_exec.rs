@@ -63,9 +63,12 @@ impl GitOutputBuffer {
         }
         lock.push_back(entry);
     }
-
     pub fn get_entries(&self) -> Vec<GitOutputEntry> {
         self.entries.read().iter().cloned().collect()
+    }
+
+    pub fn clear(&self) {
+        self.entries.write().clear();
     }
 }
 
@@ -83,12 +86,18 @@ pub fn get_global_buffer() -> &'static GitOutputBuffer {
     unsafe { &*(lock.as_ref().unwrap() as *const GitOutputBuffer) }
 }
 
+pub fn redact_git_command(cmd: &str) -> String {
+    let sanitized = hosting::sanitize_text(cmd);
+    ai::redact_text(&sanitized)
+}
+
 pub fn create_git_observer() -> git_core::CommandObserver {
     Arc::new(|record: &git_core::GitCommandRecord| {
+        let raw_cmd = format!("git {}", record.args.join(" "));
         let entry = GitOutputEntry {
             id: NEXT_OUTPUT_ID.fetch_add(1, Ordering::SeqCst) as u32,
             timestamp: Utc::now().timestamp_millis() as f64,
-            cmd: format!("git {}", record.args.join(" ")),
+            cmd: redact_git_command(&raw_cmd),
             cwd: record.cwd.to_string_lossy().to_string(),
             exit_code: record.exit_code.unwrap_or(-1),
             duration_ms: record.duration_ms as u32,
@@ -163,6 +172,12 @@ pub fn get_git_output() -> Result<Vec<GitOutputEntry>, AppError> {
     Ok(get_global_buffer().get_entries())
 }
 
+#[tauri::command]
+#[specta::specta]
+pub fn clear_git_output() -> Result<(), AppError> {
+    get_global_buffer().clear();
+    Ok(())
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,8 +201,23 @@ mod tests {
         let entries = buf.get_entries();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].cmd, "git status");
+
+        buf.clear();
+        assert!(buf.get_entries().is_empty());
     }
 
+    #[test]
+    fn test_redact_git_command() {
+        let raw = "git clone https://user:secret123@github.com/org/repo.git";
+        let redacted = redact_git_command(raw);
+        assert!(!redacted.contains("secret123"));
+        assert!(redacted.contains("[REDACTED]@github.com"));
+
+        let raw_token = "git push https://ghp_0123456789abcdef0123456789abcdef012345@github.com/repo";
+        let redacted_token = redact_git_command(raw_token);
+        assert!(!redacted_token.contains("ghp_0123456789"));
+        assert!(redacted_token.contains("[REDACTED]"));
+    }
     #[test]
     fn test_execute_git_status() {
         let output = execute_git(None, &["--version"], None).expect("git --version");

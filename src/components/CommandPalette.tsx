@@ -181,6 +181,15 @@ export const CommandPalette: React.FC = () => {
         },
       },
       {
+        id: "developer-git-timings",
+        category: "Developer",
+        title: "Developer: Show Git Command Timings",
+        icon: Terminal,
+        action: () => {
+          openTab({ id: "git-timings", title: "Git Command Timings", closable: true });
+        },
+      },
+      {
         id: "view-settings",
         category: "Preferences",
         title: "Open Settings",

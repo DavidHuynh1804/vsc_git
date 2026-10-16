@@ -18,6 +18,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             repo::session::get_current_repo,
             repo::session::git_version,
             git_exec::get_git_output,
+            git_exec::clear_git_output,
             commands::pick_folder,
             repo::jobs::cancel_job,
             repo::ipc::answer_prompt,
