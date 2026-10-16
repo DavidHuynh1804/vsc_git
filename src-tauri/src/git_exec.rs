@@ -98,6 +98,12 @@ pub fn create_git_observer() -> git_core::CommandObserver {
 
         get_global_buffer().push(entry.clone());
 
+        tracing::info!(
+            cmd = %entry.cmd,
+            duration_ms = entry.duration_ms,
+            exit_code = entry.exit_code,
+            "git command executed"
+        );
         if let Some(app) = get_global_app_handle() {
             let _ = app.emit("git://output", &entry);
         }

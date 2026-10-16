@@ -25,10 +25,40 @@
       "csp": "default-src 'self'; worker-src blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: https://asset.localhost blob: data:"
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDA4NDU3RkM4MDNGMkYzNUYKUldSZjgvSUR5SDlGQ0VBREw4OWM0RVJJekFxQk1jYzJUOFNEZVRRWEdlN1FxSmdhbTdSVnI0UkoK",
+      "endpoints": [
+        "https://github.com/DavidHuynh1804/vsc_git/releases/latest/download/latest.json"
+      ]
+    }
+  },
   "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": true,
     "externalBin": [
       "binaries/vsc-git-askpass",
       "binaries/vsc-git-sequence-editor"
-    ]
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser"
+      },
+      "wix": {}
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    }
   }
 }

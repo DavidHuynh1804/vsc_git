@@ -15,6 +15,7 @@ use crate::error::AppError;
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app))]
 pub fn pick_folder(app: AppHandle) -> Result<Option<String>, AppError> {
     let picked = app.dialog().file().blocking_pick_folder();
     Ok(picked

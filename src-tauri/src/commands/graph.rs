@@ -8,6 +8,7 @@ use crate::repo::jobs::{spawn_job, JobId};
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn graph_reset(
     app: AppHandle,
     window: Window,
@@ -23,6 +24,7 @@ pub fn graph_reset(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn graph_page(
     app: AppHandle,
     window: Window,
@@ -45,6 +47,7 @@ pub fn graph_page(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn commit_detail(
     app: AppHandle,
     window: Window,
@@ -58,6 +61,7 @@ pub fn commit_detail(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn compare(
     app: AppHandle,
     window: Window,
@@ -72,6 +76,7 @@ pub fn compare(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn graph_search(app: AppHandle, window: Window, query: String) -> Result<JobId, AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();

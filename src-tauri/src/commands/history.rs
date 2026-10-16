@@ -15,6 +15,7 @@ use crate::repo::jobs::{spawn_job, JobId};
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn cherry_pick(app: AppHandle, window: Window, sha: String) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -32,6 +33,7 @@ pub fn cherry_pick(app: AppHandle, window: Window, sha: String) -> Result<(), Ap
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn revert(app: AppHandle, window: Window, sha: String) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -49,6 +51,7 @@ pub fn revert(app: AppHandle, window: Window, sha: String) -> Result<(), AppErro
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn reset(app: AppHandle, window: Window, sha: String, mode: String) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -67,6 +70,7 @@ pub fn reset(app: AppHandle, window: Window, sha: String, mode: String) -> Resul
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn merge(
     app: AppHandle,
     window: Window,
@@ -89,6 +93,7 @@ pub fn merge(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn rebase(app: AppHandle, window: Window, ref_name: String) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -106,6 +111,7 @@ pub fn rebase(app: AppHandle, window: Window, ref_name: String) -> Result<(), Ap
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn rebase_interactive(app: AppHandle, window: Window, base: String) -> Result<JobId, AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -122,6 +128,7 @@ pub fn rebase_interactive(app: AppHandle, window: Window, base: String) -> Resul
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(_app, _window))]
 pub fn submit_rebase_todo(
     _app: AppHandle,
     _window: Window,
@@ -143,6 +150,7 @@ pub fn submit_rebase_todo(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn op_continue(app: AppHandle, window: Window) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -160,6 +168,7 @@ pub fn op_continue(app: AppHandle, window: Window) -> Result<(), AppError> {
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn op_skip(app: AppHandle, window: Window) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -177,6 +186,7 @@ pub fn op_skip(app: AppHandle, window: Window) -> Result<(), AppError> {
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn op_abort(app: AppHandle, window: Window) -> Result<(), AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -194,6 +204,7 @@ pub fn op_abort(app: AppHandle, window: Window) -> Result<(), AppError> {
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn get_operation_state(app: AppHandle, window: Window) -> Result<AppOperationState, AppError> {
     let session = active_session(&app, &window)?;
     let cli = create_git_cli();
@@ -208,6 +219,7 @@ pub fn get_operation_state(app: AppHandle, window: Window) -> Result<AppOperatio
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn get_conflict(
     app: AppHandle,
     window: Window,
@@ -222,6 +234,7 @@ pub fn get_conflict(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn resolve_conflict(
     app: AppHandle,
     window: Window,
@@ -241,6 +254,7 @@ pub fn resolve_conflict(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn resolve_with(
     app: AppHandle,
     window: Window,
@@ -264,6 +278,7 @@ pub fn resolve_with(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn blame(
     app: AppHandle,
     window: Window,
@@ -281,6 +296,7 @@ pub fn blame(
 
 #[tauri::command]
 #[specta::specta]
+#[tracing::instrument(skip(app, window))]
 pub fn file_history(
     app: AppHandle,
     window: Window,
