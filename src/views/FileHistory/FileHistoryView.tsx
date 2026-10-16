@@ -93,7 +93,13 @@ export const FileHistoryView: React.FC<FileHistoryViewProps> = ({ filePath }) =>
     };
   }, [selectedEntry, filePath, scmDataSource]);
 
-  const monacoTheme = theme === "light" ? "vs" : "vs-dark";
+  const isLight =
+    theme === "light" ||
+    (theme === "system" &&
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      !window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const monacoTheme = isLight ? "vs" : "vs-dark";
   const language = guessLanguageByPath(filePath);
 
   return (
@@ -112,7 +118,8 @@ export const FileHistoryView: React.FC<FileHistoryViewProps> = ({ filePath }) =>
           type="button"
           onClick={() => void loadHistory()}
           title="Refresh history"
-          className="rounded p-1 text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg"
+          aria-label="Refresh history"
+          className="rounded p-1 text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg transition-colors"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isLoadingHistory ? "animate-spin" : ""}`} />
         </button>

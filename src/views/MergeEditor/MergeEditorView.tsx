@@ -184,7 +184,13 @@ export const MergeEditorView: React.FC<MergeEditorViewProps> = ({
     );
   }
 
-  const monacoTheme = theme === "light" ? "vs" : "vs-dark";
+  const isLight =
+    theme === "light" ||
+    (theme === "system" &&
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      !window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const monacoTheme = isLight ? "vs" : "vs-dark";
   const language = guessLanguageByPath(filePath);
   const activeRegion = regions[activeConflictIdx] ?? regions[0];
 
@@ -229,7 +235,8 @@ export const MergeEditorView: React.FC<MergeEditorViewProps> = ({
                 onClick={() => handleJumpToConflict(activeConflictIdx - 1)}
                 disabled={activeConflictIdx <= 0}
                 title="Previous Conflict"
-                className="rounded p-1 text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg disabled:opacity-30"
+                aria-label="Previous Conflict"
+                className="rounded p-1 text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg disabled:opacity-30 transition-colors"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </button>
@@ -238,7 +245,8 @@ export const MergeEditorView: React.FC<MergeEditorViewProps> = ({
                 onClick={() => handleJumpToConflict(activeConflictIdx + 1)}
                 disabled={activeConflictIdx >= regions.length - 1}
                 title="Next Conflict"
-                className="rounded p-1 text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg disabled:opacity-30"
+                aria-label="Next Conflict"
+                className="rounded p-1 text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg disabled:opacity-30 transition-colors"
               >
                 <ChevronRight className="h-3.5 w-3.5" />
               </button>
@@ -250,6 +258,8 @@ export const MergeEditorView: React.FC<MergeEditorViewProps> = ({
             type="button"
             onClick={() => setShowBase(!showBase)}
             title="Toggle Base (:1) view"
+            aria-label="Toggle Base (:1) view"
+            aria-pressed={showBase}
             className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs border border-vscode-border transition-colors ${
               showBase
                 ? "bg-vscode-accent text-white"
@@ -265,7 +275,8 @@ export const MergeEditorView: React.FC<MergeEditorViewProps> = ({
             type="button"
             onClick={handleOpenExternal}
             title="Open in external editor"
-            className="inline-flex items-center gap-1 rounded border border-vscode-border bg-vscode-input px-2 py-1 text-xs text-vscode-fg hover:bg-vscode-hover"
+            aria-label="Open in external editor"
+            className="inline-flex items-center gap-1 rounded border border-vscode-border bg-vscode-input px-2 py-1 text-xs text-vscode-fg hover:bg-vscode-hover transition-colors"
           >
             <ExternalLink className="h-3 w-3" />
             <span>External</span>
@@ -275,7 +286,9 @@ export const MergeEditorView: React.FC<MergeEditorViewProps> = ({
           <button
             type="button"
             onClick={handleMarkResolvedClick}
-            className="inline-flex items-center gap-1 rounded bg-vscode-accent px-2.5 py-1 text-xs font-medium text-white hover:brightness-110 shadow-sm"
+            title="Mark as Resolved"
+            aria-label="Mark as Resolved"
+            className="inline-flex items-center gap-1 rounded bg-vscode-accent px-2.5 py-1 text-xs font-medium text-white hover:bg-vscode-accent-hover shadow-sm transition-colors"
           >
             <CheckCircle className="h-3.5 w-3.5" />
             <span>Mark as Resolved</span>
@@ -285,7 +298,7 @@ export const MergeEditorView: React.FC<MergeEditorViewProps> = ({
 
       {/* Conflict Quick Action Bar */}
       {regions.length > 0 && activeRegion && (
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-vscode-activity px-3 py-1 text-xs border-b border-vscode-border">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-vscode-sidebar px-3 py-1 text-xs border-b border-vscode-border select-none">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-vscode-muted">
               Conflict #{activeRegion.id} (lines {activeRegion.startLine}-{activeRegion.endLine}):
