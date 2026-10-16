@@ -620,3 +620,150 @@ fn test_integration_sync_fetch_pull_push_non_fast_forward() {
     let err = push_res.unwrap_err();
     assert_eq!(err.kind, ErrorKind::NonFastForward);
 }
+
+#[test]
+fn test_integration_repo_submodule_lifecycle() {
+    let sub_repo = TestRepo::new();
+    sub_repo.write_file("sub_file.txt", "submodule v1\n");
+    stage_all(&sub_repo.cli, sub_repo.path()).unwrap();
+    commit(
+        &sub_repo.cli,
+        sub_repo.path(),
+        CommitOptions::new("submodule initial"),
+    )
+    .unwrap();
+
+    let parent_repo = TestRepo::new();
+    parent_repo.write_file("parent_file.txt", "parent v1\n");
+    stage_all(&parent_repo.cli, parent_repo.path()).unwrap();
+    commit(
+        &parent_repo.cli,
+        parent_repo.path(),
+        CommitOptions::new("parent initial"),
+    )
+    .unwrap();
+
+    // Add submodule with protocol.file.allow=always
+    let sub_path_str = sub_repo.path().to_str().unwrap();
+    parent_repo
+        .cli
+        .exec(
+            parent_repo.path(),
+            &[
+                "-c",
+                "protocol.file.allow=always",
+                "submodule",
+                "add",
+                sub_path_str,
+                "my-submodule",
+            ],
+            CommandOptions::default(),
+        )
+        .expect("git submodule add");
+
+    // Verify status shows submodule changes
+    let st1 = status(&parent_repo.cli, parent_repo.path()).unwrap();
+    let sub_entry = st1.entries.iter().find(|e| e.path == "my-submodule");
+    assert!(
+        sub_entry.is_some(),
+        "Expected my-submodule in status entries"
+    );
+    let sub_e = sub_entry.unwrap();
+    if let StatusEntryKind::Ordinary { submodule, .. } = &sub_e.kind {
+        assert!(submodule.is_submodule, "Expected is_submodule to be true");
+    } else {
+        panic!("Expected Ordinary status entry for submodule");
+    }
+
+    // Stage and commit submodule in parent repo
+    stage(
+        &parent_repo.cli,
+        parent_repo.path(),
+        &[Path::new(".gitmodules"), Path::new("my-submodule")],
+    )
+    .unwrap();
+    commit(
+        &parent_repo.cli,
+        parent_repo.path(),
+        CommitOptions::new("add submodule pointer"),
+    )
+    .unwrap();
+
+    // Check status is clean
+    let st2 = status(&parent_repo.cli, parent_repo.path()).unwrap();
+    assert_eq!(st2.staged().len(), 0);
+    assert_eq!(st2.unstaged().len(), 0);
+
+    // Make a new commit inside the submodule in parent repo
+    let inner_sub_dir = parent_repo.path().join("my-submodule");
+    fs::write(inner_sub_dir.join("sub_file.txt"), "submodule v2\n").unwrap();
+    parent_repo
+        .cli
+        .exec(&inner_sub_dir, &["add", "."], CommandOptions::default())
+        .expect("git add in submodule");
+    parent_repo
+        .cli
+        .exec(
+            &inner_sub_dir,
+            &["commit", "-m", "submodule second commit"],
+            CommandOptions::default(),
+        )
+        .expect("git commit in submodule");
+
+    // Parent repo status now shows submodule modified (commit changed)
+    let st3 = status(&parent_repo.cli, parent_repo.path()).unwrap();
+    let modified_sub = st3.entries.iter().find(|e| e.path == "my-submodule");
+    assert!(
+        modified_sub.is_some(),
+        "Expected my-submodule modified in status"
+    );
+    if let StatusEntryKind::Ordinary {
+        unstaged,
+        submodule,
+        ..
+    } = &modified_sub.unwrap().kind
+    {
+        assert_eq!(*unstaged, FileStatus::Modified);
+        assert!(submodule.is_submodule);
+        assert!(submodule.commit_changed || submodule.modified);
+    } else {
+        panic!("Expected Ordinary status entry with modified submodule");
+    }
+
+    // Stage updated submodule pointer and commit
+    stage(
+        &parent_repo.cli,
+        parent_repo.path(),
+        &[Path::new("my-submodule")],
+    )
+    .unwrap();
+    let st4 = status(&parent_repo.cli, parent_repo.path()).unwrap();
+    assert_eq!(st4.staged().len(), 1);
+    assert_eq!(st4.staged()[0].path, "my-submodule");
+
+    commit(
+        &parent_repo.cli,
+        parent_repo.path(),
+        CommitOptions::new("update submodule to v2"),
+    )
+    .unwrap();
+
+    // Status is clean again
+    let st5 = status(&parent_repo.cli, parent_repo.path()).unwrap();
+    assert_eq!(st5.staged().len(), 0);
+    assert_eq!(st5.unstaged().len(), 0);
+
+    // Verify git log works without error
+    let log_out = parent_repo
+        .cli
+        .exec(
+            parent_repo.path(),
+            &["log", "--oneline", "-n", "5"],
+            CommandOptions::default(),
+        )
+        .expect("git log on repo with submodule");
+    assert_eq!(log_out.exit_code, 0);
+    let stdout_str = String::from_utf8_lossy(&log_out.stdout);
+    assert!(stdout_str.contains("update submodule to v2"));
+    assert!(stdout_str.contains("add submodule pointer"));
+}
