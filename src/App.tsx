@@ -13,6 +13,7 @@ import { commands, events } from "@/bindings";
 import { AlertCircle, X } from "lucide-react";
 import { useUIStore } from "@/stores/ui";
 import { CreatePrDialog } from "@/views/PullRequest/CreatePrDialog";
+import { UpdateNotification } from "@/components/UpdateNotification";
 
 export default function App() {
   const { error, setError, setRepo, headBranch, repoRoot } = useRepoStore();
@@ -114,6 +115,7 @@ export default function App() {
           <span>{toastMessage}</span>
         </div>
       )}
+      <UpdateNotification />
     </div>
   );
 }
