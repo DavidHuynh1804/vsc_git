@@ -95,31 +95,48 @@ export const EditorArea: React.FC = () => {
   return (
     <main className="flex flex-1 flex-col overflow-hidden bg-vscode-bg min-w-0">
       {/* Tab bar */}
-      <div className="flex h-9 w-full items-center border-b bg-vscode-activity overflow-x-auto select-none">
-        {tabs.map((tab) => {
+      <div
+        role="tablist"
+        aria-label="Editor tabs"
+        className="flex h-9 w-full items-center border-b bg-vscode-tab-bar overflow-x-auto select-none"
+      >
+        {tabs.map((tab, idx) => {
           const isActive = tab.id === activeTabId;
           return (
             <div
               key={tab.id}
               role="tab"
+              id={`tab-${tab.id}`}
+              aria-controls={`tabpanel-${tab.id}`}
               aria-selected={isActive}
+              tabIndex={isActive ? 0 : -1}
               onClick={() => setActiveTabId(tab.id)}
-              className={`flex h-full items-center gap-2 border-r px-3.5 text-xs cursor-pointer transition-colors ${
+              onKeyDown={(e) => {
+                if (e.key === "ArrowRight") {
+                  const next = tabs[(idx + 1) % tabs.length];
+                  if (next) setActiveTabId(next.id);
+                } else if (e.key === "ArrowLeft") {
+                  const prev = tabs[(idx - 1 + tabs.length) % tabs.length];
+                  if (prev) setActiveTabId(prev.id);
+                }
+              }}
+              className={`flex h-full items-center gap-2 border-r border-vscode-border px-3.5 text-xs cursor-pointer transition-colors ${
                 isActive
-                  ? "bg-vscode-bg text-vscode-fg font-medium border-t-2 border-t-vscode-accent"
-                  : "bg-vscode-sidebar text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg"
+                  ? "bg-vscode-tab-active text-vscode-fg font-medium border-t-2 border-t-vscode-accent"
+                  : "bg-vscode-tab-inactive text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg"
               }`}
             >
-              <span>{tab.title}</span>
+              <span className="truncate max-w-[200px]">{tab.title}</span>
               {tab.closable !== false && (
                 <button
                   type="button"
-                  title="Close tab"
+                  title={`Close ${tab.title}`}
+                  aria-label={`Close ${tab.title}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     closeTab(tab.id);
                   }}
-                  className="rounded p-0.5 hover:bg-vscode-hover hover:text-vscode-fg"
+                  className="rounded p-0.5 hover:bg-vscode-hover hover:text-vscode-fg transition-colors"
                 >
                   <X className="h-3 w-3" />
                 </button>
