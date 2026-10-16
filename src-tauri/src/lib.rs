@@ -145,6 +145,17 @@ pub fn run() {
         .setup(move |app| {
             builder.mount_events(app);
             crate::git_exec::set_global_app_handle(app.handle().clone());
+
+            if let Ok(exit_ms_str) = std::env::var("VSC_GIT_SMOKE_EXIT_AFTER_MS") {
+                if let Ok(exit_ms) = exit_ms_str.trim().parse::<u64>() {
+                    let handle = app.handle().clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(exit_ms));
+                        handle.exit(0);
+                    });
+                }
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())

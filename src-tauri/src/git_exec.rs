@@ -213,7 +213,8 @@ mod tests {
         assert!(!redacted.contains("secret123"));
         assert!(redacted.contains("[REDACTED]@github.com"));
 
-        let raw_token = "git push https://ghp_0123456789abcdef0123456789abcdef012345@github.com/repo";
+        let raw_token =
+            "git push https://ghp_0123456789abcdef0123456789abcdef012345@github.com/repo";
         let redacted_token = redact_git_command(raw_token);
         assert!(!redacted_token.contains("ghp_0123456789"));
         assert!(redacted_token.contains("[REDACTED]"));

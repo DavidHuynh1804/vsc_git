@@ -110,3 +110,6 @@ jobs:
 
       - name: Tauri Build (Debug, No Bundle)
         run: pnpm tauri build --debug --no-bundle
+
+      - name: App Startup Smoke Test
+        run: node scripts/smoke-startup.mjs
