@@ -21,6 +21,7 @@ jobs:
     outputs:
       release_id: ${{ steps.create_release.outputs.id }}
       tag_name: ${{ steps.resolve_tag.outputs.tag }}
+      channel: ${{ steps.resolve_tag.outputs.channel }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -44,8 +45,12 @@ jobs:
             TAG="v${VERSION}"
           fi
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          if [[ "$TAG" == *"-beta"* ]]; then
+            echo "channel=beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "channel=stable" >> "$GITHUB_OUTPUT"
+          fi
           echo "Resolved tag: ${TAG}"
-
       - name: Generate Changelog Notes
         id: changelog
         run: |
@@ -64,15 +69,20 @@ jobs:
           # Check if draft release already exists for this tag
           EXISTING_ID=$(gh release view "$TAG" --json id,isDraft -q 'select(.isDraft == true) | .id' 2>/dev/null || true)
           
+          PRERELEASE_FLAG=""
+          if [ "${{ steps.resolve_tag.outputs.channel }}" = "beta" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
           if [ -n "$EXISTING_ID" ]; then
             echo "Draft release already exists with id: $EXISTING_ID"
             echo "id=$EXISTING_ID" >> "$GITHUB_OUTPUT"
           else
             RELEASE_URL=$(gh release create "$TAG" \
               --draft \
+              $PRERELEASE_FLAG \
               --title "$TAG" \
               --notes-file RELEASE_NOTES.md)
-            
             RELEASE_ID=$(gh release view "$TAG" --json id -q .id)
             echo "Created draft release with id: $RELEASE_ID ($RELEASE_URL)"
             echo "id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
@@ -192,3 +202,17 @@ jobs:
           args: >-
             ${{ matrix.args }}
             ${{ steps.check_credentials.outputs.has_updater_key != 'true' && '--config ''{"bundle":{"createUpdaterArtifacts":false},"plugins":{"updater":{"pubkey":""}}}''' || '' }}
+
+      - name: Generate and Upload Beta Updater Manifest
+        if: steps.check_credentials.outputs.has_updater_key == 'true' && needs.create-release.outputs.channel == 'beta'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.create-release.outputs.tag_name }}"
+          CLEAN_VERSION="${TAG#v}"
+          node scripts/generate-latest-json.mjs --version "$CLEAN_VERSION" --channel beta --out latest-beta.json
+          if [ -f latest-beta.json ]; then
+            gh release upload "$TAG" latest-beta.json --clobber || true
+            echo "Uploaded latest-beta.json for $TAG"
+          fi

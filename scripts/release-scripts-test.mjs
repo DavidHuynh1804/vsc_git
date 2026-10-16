@@ -52,5 +52,26 @@ test("generateLatestJson generates manifest with correct structure", () => {
 
   assert.equal(manifest.version, "0.1.0");
   assert.equal(manifest.notes, "Initial release");
+  assert.equal(manifest.channel, "stable");
   assert.deepEqual(manifest.platforms, {});
+});
+
+test("generateLatestJson resolves beta channel from version or option", () => {
+  const betaManifest1 = generateLatestJson({
+    version: "0.2.0-beta.1",
+    notes: "Beta release",
+  });
+  assert.equal(betaManifest1.channel, "beta");
+
+  const betaManifest2 = generateLatestJson({
+    version: "0.2.0",
+    channel: "beta",
+  });
+  assert.equal(betaManifest2.channel, "beta");
+
+  const stableManifest = generateLatestJson({
+    version: "0.2.0",
+    channel: "stable",
+  });
+  assert.equal(stableManifest.channel, "stable");
 });

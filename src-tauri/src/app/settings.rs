@@ -105,7 +105,11 @@ pub struct Settings {
     #[serde(rename = "ui.theme", default = "default_system")]
     pub ui_theme: String,
 
-    #[serde(rename = "update.channel", default = "default_stable")]
+    #[serde(
+        rename = "update.channel",
+        alias = "update_channel",
+        default = "default_stable"
+    )]
     pub update_channel: String,
 }
 
