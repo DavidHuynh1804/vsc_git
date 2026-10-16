@@ -144,8 +144,9 @@ export const SourceControlView: React.FC = () => {
           <button
             type="button"
             title={viewMode === "list" ? "View as Tree" : "View as List"}
+            aria-label={viewMode === "list" ? "View as Tree" : "View as List"}
             onClick={toggleViewMode}
-            className="rounded p-1 hover:bg-vscode-hover hover:text-vscode-fg"
+            className="rounded p-1 hover:bg-vscode-hover hover:text-vscode-fg transition-colors"
           >
             {viewMode === "list" ? (
               <FolderTree className="h-3.5 w-3.5" />
@@ -156,25 +157,34 @@ export const SourceControlView: React.FC = () => {
           <button
             type="button"
             title="Refresh Status"
+            aria-label="Refresh Status"
             onClick={() => refreshStatus()}
-            className="rounded p-1 hover:bg-vscode-hover hover:text-vscode-fg"
+            className="rounded p-1 hover:bg-vscode-hover hover:text-vscode-fg transition-colors"
           >
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
-
       {/* Commit Box */}
       <CommitBox />
 
       {/* Scrollable File Groups */}
-      <div className="flex-1 overflow-y-auto">
+      <div role="region" aria-label="Source Control changes" className="flex-1 overflow-y-auto">
         {/* Merge Changes Group */}
         {mergeEntries.length > 0 && (
           <div className="flex flex-col border-b border-vscode-border/50">
             <div
+              role="button"
+              tabIndex={0}
+              aria-expanded={isMergeOpen}
               onClick={() => setIsMergeOpen(!isMergeOpen)}
-              className="flex h-7 items-center justify-between px-2 text-xs font-semibold text-error cursor-pointer hover:bg-vscode-hover"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setIsMergeOpen(!isMergeOpen);
+                }
+              }}
+              className="flex h-7 items-center justify-between px-2 text-xs font-semibold text-error cursor-pointer hover:bg-vscode-hover select-none"
             >
               <div className="flex items-center gap-1">
                 {isMergeOpen ? (
@@ -184,13 +194,13 @@ export const SourceControlView: React.FC = () => {
                 )}
                 <span>MERGE CHANGES</span>
               </div>
-              <span className="rounded bg-error/20 px-1.5 py-0.2 text-[10px] text-error font-mono">
+              <span className="rounded bg-error/20 px-1.5 py-0.2 text-[10px] text-error font-mono font-bold">
                 {mergeEntries.length}
               </span>
             </div>
 
             {isMergeOpen && (
-              <div className="flex flex-col">
+              <div role="list" aria-label="Merge changes" className="flex flex-col">
                 {mergeEntries.map((entry) => (
                   <FileItem
                     key={entry.path}
@@ -219,8 +229,17 @@ export const SourceControlView: React.FC = () => {
           className="flex flex-col border-b border-vscode-border/50"
         >
           <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={isStagedOpen}
             onClick={() => setIsStagedOpen(!isStagedOpen)}
-            className="group flex h-7 items-center justify-between px-2 text-xs font-semibold text-vscode-fg cursor-pointer hover:bg-vscode-hover"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setIsStagedOpen(!isStagedOpen);
+              }
+            }}
+            className="group flex h-7 items-center justify-between px-2 text-xs font-semibold text-vscode-fg cursor-pointer hover:bg-vscode-hover select-none"
           >
             <div className="flex items-center gap-1">
               {isStagedOpen ? (
@@ -237,11 +256,12 @@ export const SourceControlView: React.FC = () => {
                   <button
                     type="button"
                     title="Unstage All Changes"
+                    aria-label="Unstage All Changes"
                     onClick={(e) => {
                       e.stopPropagation();
                       void unstageAll();
                     }}
-                    className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
+                    className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
                   >
                     <Minus className="h-3.5 w-3.5" />
                   </button>
@@ -254,7 +274,7 @@ export const SourceControlView: React.FC = () => {
           </div>
 
           {isStagedOpen && (
-            <div className="flex flex-col">
+            <div role="list" aria-label="Staged changes" className="flex flex-col">
               {stagedEntries.map((entry) => (
                 <FileItem
                   key={entry.path}
@@ -287,8 +307,17 @@ export const SourceControlView: React.FC = () => {
           className="flex flex-col border-b border-vscode-border/50"
         >
           <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={isChangesOpen}
             onClick={() => setIsChangesOpen(!isChangesOpen)}
-            className="group flex h-7 items-center justify-between px-2 text-xs font-semibold text-vscode-fg cursor-pointer hover:bg-vscode-hover"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setIsChangesOpen(!isChangesOpen);
+              }
+            }}
+            className="group flex h-7 items-center justify-between px-2 text-xs font-semibold text-vscode-fg cursor-pointer hover:bg-vscode-hover select-none"
           >
             <div className="flex items-center gap-1">
               {isChangesOpen ? (
@@ -305,22 +334,24 @@ export const SourceControlView: React.FC = () => {
                   <button
                     type="button"
                     title="Discard All Changes"
+                    aria-label="Discard All Changes"
                     onClick={(e) => {
                       e.stopPropagation();
                       setConfirmDiscardAllChanges(true);
                     }}
-                    className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
+                    className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
                   </button>
                   <button
                     type="button"
                     title="Stage All Changes"
+                    aria-label="Stage All Changes"
                     onClick={(e) => {
                       e.stopPropagation();
                       void stageAll();
                     }}
-                    className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
+                    className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
                   >
                     <Plus className="h-3.5 w-3.5" />
                   </button>
@@ -333,7 +364,7 @@ export const SourceControlView: React.FC = () => {
           </div>
 
           {isChangesOpen && (
-            <div className="flex flex-col">
+            <div role="list" aria-label="Unstaged changes" className="flex flex-col">
               {changesEntries.map((entry) => (
                 <FileItem
                   key={entry.path}
@@ -362,52 +393,63 @@ export const SourceControlView: React.FC = () => {
         {/* Untracked Group (if separated) */}
         {groupUntrackedSeparately && untrackedEntries.length > 0 && (
           <div className="flex flex-col border-b border-vscode-border/50">
-            <div
-              onClick={() => setIsUntrackedOpen(!isUntrackedOpen)}
-              className="group flex h-7 items-center justify-between px-2 text-xs font-semibold text-vscode-fg cursor-pointer hover:bg-vscode-hover"
-            >
-              <div className="flex items-center gap-1">
-                {isUntrackedOpen ? (
-                  <ChevronDown className="h-3.5 w-3.5" />
-                ) : (
-                  <ChevronRight className="h-3.5 w-3.5" />
-                )}
-                <span>UNTRACKED</span>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <div className="hidden group-hover:flex items-center gap-1">
-                  <button
-                    type="button"
-                    title="Discard All Untracked"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setConfirmDiscardAllUntracked(true);
-                    }}
-                    className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    title="Stage All Untracked"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void stage(untrackedEntries.map((u) => u.path));
-                    }}
-                    className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                <span className="rounded bg-vscode-input px-1.5 py-0.2 text-[10px] text-vscode-muted font-mono">
-                  {untrackedEntries.length}
-                </span>
-              </div>
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={isUntrackedOpen}
+            onClick={() => setIsUntrackedOpen(!isUntrackedOpen)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setIsUntrackedOpen(!isUntrackedOpen);
+              }
+            }}
+            className="group flex h-7 items-center justify-between px-2 text-xs font-semibold text-vscode-fg cursor-pointer hover:bg-vscode-hover select-none"
+          >
+            <div className="flex items-center gap-1">
+              {isUntrackedOpen ? (
+                <ChevronDown className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5" />
+              )}
+              <span>UNTRACKED</span>
             </div>
 
-            {isUntrackedOpen && (
-              <div className="flex flex-col">
+            <div className="flex items-center gap-1.5">
+              <div className="hidden group-hover:flex items-center gap-1">
+                <button
+                  type="button"
+                  title="Discard All Untracked"
+                  aria-label="Discard All Untracked"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmDiscardAllUntracked(true);
+                  }}
+                  className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  title="Stage All Untracked"
+                  aria-label="Stage All Untracked"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void stage(untrackedEntries.map((u) => u.path));
+                  }}
+                  className="rounded p-0.5 hover:bg-vscode-active text-vscode-muted hover:text-vscode-fg transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <span className="rounded bg-vscode-input px-1.5 py-0.2 text-[10px] text-vscode-muted font-mono">
+                {untrackedEntries.length}
+              </span>
+            </div>
+          </div>
+
+          {isUntrackedOpen && (
+            <div role="list" aria-label="Untracked changes" className="flex flex-col">
                 {untrackedEntries.map((entry) => (
                   <FileItem
                     key={entry.path}

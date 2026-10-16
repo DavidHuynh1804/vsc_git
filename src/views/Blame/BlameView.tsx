@@ -139,7 +139,13 @@ export const BlameView: React.FC<BlameViewProps> = ({
     setHoveredLine(null);
   };
 
-  const monacoTheme = theme === "light" ? "vs" : "vs-dark";
+  const isLight =
+    theme === "light" ||
+    (theme === "system" &&
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      !window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const monacoTheme = isLight ? "vs" : "vs-dark";
   const language = guessLanguageByPath(filePath);
 
   return (
@@ -204,7 +210,8 @@ export const BlameView: React.FC<BlameViewProps> = ({
             type="button"
             onClick={() => void loadBlame()}
             title="Refresh blame"
-            className="rounded p-1 text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg"
+            aria-label="Refresh blame"
+            className="rounded p-1 text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg transition-colors"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
           </button>

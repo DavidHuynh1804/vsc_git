@@ -199,7 +199,13 @@ export const DiffView: React.FC<DiffViewProps> = ({ filePath, context = "unstage
     );
   }
 
-  const monacoTheme = theme === "light" ? "vs" : "vs-dark";
+  const isLightTheme =
+    theme === "light" ||
+    (theme === "system" &&
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      !window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const monacoTheme = isLightTheme ? "vs" : "vs-dark";
   const language = guessLanguageByPath(filePath);
 
   return (

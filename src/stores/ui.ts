@@ -60,16 +60,23 @@ export const useUIStore = create<UIState>((set) => ({
   setCommandPaletteOpen: (isCommandPaletteOpen) => set({ isCommandPaletteOpen }),
 
   setTheme: (theme) => {
-    const root = document.documentElement;
-    root.classList.remove("light", "dark");
-    if (theme === "light") {
-      root.classList.add("light");
-    } else if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      const isSystemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      if (!isSystemDark) {
+    if (typeof document !== "undefined") {
+      const root = document.documentElement;
+      root.classList.remove("light", "dark");
+      if (theme === "light") {
         root.classList.add("light");
+      } else if (theme === "dark") {
+        root.classList.add("dark");
+      } else {
+        const isSystemDark =
+          typeof window !== "undefined" &&
+          typeof window.matchMedia === "function" &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches;
+        if (!isSystemDark) {
+          root.classList.add("light");
+        } else {
+          root.classList.add("dark");
+        }
       }
     }
     set({ theme });

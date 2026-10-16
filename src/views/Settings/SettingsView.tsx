@@ -14,6 +14,7 @@ import { defaultHostingDataSource } from "@/integrations/hosting";
 import { AiSection } from "./AiSection";
 import { HostsSection } from "./HostsSection";
 import { ListEditor } from "./ListEditor";
+import { useUIStore } from "@/stores/ui";
 import {
   Search,
   RotateCcw,
@@ -308,7 +309,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="flex flex-1 overflow-hidden min-h-0">
           {/* Section Nav Sidebar */}
           {!searchQuery && (
-            <div className="w-48 flex-shrink-0 border-r border-vscode-border bg-vscode-sidebar/40 p-2 overflow-y-auto flex flex-col gap-0.5">
+            <nav aria-label="Settings categories" className="w-48 flex-shrink-0 border-r border-vscode-border bg-vscode-sidebar/40 p-2 overflow-y-auto flex flex-col gap-0.5 select-none">
               {SECTIONS.map((sec) => {
                 const Icon = sec.icon;
                 const isActive = activeSection === sec.id;
@@ -316,6 +317,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     key={sec.id}
                     type="button"
+                    aria-label={sec.title}
+                    aria-current={isActive ? "page" : undefined}
                     onClick={() => setActiveSection(sec.id)}
                     className={`flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-left transition-colors ${
                       isActive
@@ -328,7 +331,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </button>
                 );
               })}
-            </div>
+            </nav>
           )}
 
           {/* Form Content Area */}
@@ -805,15 +808,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     settingKey="ui.theme"
                     description="Color theme matching VS Code Modern styles."
                     modified={isSettingModified("ui.theme", settings)}
-                    onReset={() => handleResetSetting("ui.theme")}
+                    onReset={() => {
+                      handleResetSetting("ui.theme");
+                      useUIStore.getState().setTheme(DEFAULT_SETTINGS["ui.theme"]);
+                    }}
                   >
                     <select
                       value={settings["ui.theme"]}
-                      onChange={(e) =>
-                        handleUpdate({
-                          "ui.theme": e.target.value as AppSettings["ui.theme"],
-                        })
-                      }
+                      aria-label="UI Theme"
+                      onChange={(e) => {
+                        const val = e.target.value as AppSettings["ui.theme"];
+                        handleUpdate({ "ui.theme": val });
+                        useUIStore.getState().setTheme(val);
+                      }}
                       className="w-48 rounded border border-vscode-border bg-vscode-input px-2.5 py-1.5 text-xs text-vscode-fg focus:border-vscode-accent focus:outline-none"
                     >
                       <option value="system">Follow System</option>

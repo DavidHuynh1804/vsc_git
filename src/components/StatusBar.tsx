@@ -27,18 +27,23 @@ export const StatusBar: React.FC = () => {
   const jobsList = Array.from(activeJobs.values());
 
   return (
-    <footer className="flex h-6 w-full items-center justify-between bg-vscode-statusbar px-2 text-[11px] text-white select-none">
-      <div className="flex items-center gap-3">
+    <footer
+      aria-label="Status Bar"
+      className="flex h-6 w-full items-center justify-between bg-vscode-statusbar px-2 text-[11px] select-none transition-colors"
+      style={{ color: "var(--vscode-statusbar-fg)" }}
+    >
+      <div className="flex items-center gap-2">
         {currentBranch ? (
           <div
+            role="status"
             title={`Current branch: ${currentBranch}`}
-            className="inline-flex items-center gap-1 hover:bg-vscode-hover px-1.5 py-0.5 rounded cursor-pointer"
+            className="inline-flex items-center gap-1 hover:bg-white/10 px-1.5 py-0.5 rounded cursor-default font-mono"
           >
             <GitBranch className="h-3 w-3" />
-            <span>{currentBranch}</span>
+            <span className="font-sans font-medium">{currentBranch}</span>
           </div>
         ) : (
-          <div className="inline-flex items-center gap-1 text-white opacity-80 px-1.5 py-0.5">
+          <div className="inline-flex items-center gap-1 opacity-80 px-1.5 py-0.5">
             <span>No Repo</span>
           </div>
         )}
@@ -46,11 +51,11 @@ export const StatusBar: React.FC = () => {
         <button
           type="button"
           onClick={() => void sync()}
-          title="Sync with remote (Click to pull and push)"
-          className="inline-flex items-center gap-1 hover:bg-vscode-hover px-1.5 py-0.5 rounded cursor-pointer opacity-90"
+          title={`Sync with remote: ${behind} commits behind, ${ahead} commits ahead`}
+          className="inline-flex items-center gap-1 hover:bg-white/10 active:bg-white/20 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
         >
           <RefreshCw className="h-2.5 w-2.5" />
-          <span>
+          <span className="font-mono">
             ↓{behind} ↑{ahead}
           </span>
         </button>
@@ -59,18 +64,21 @@ export const StatusBar: React.FC = () => {
         {jobsList.map((job) => (
           <div
             key={job.jobId}
-            className="inline-flex items-center gap-1.5 bg-vscode-hover px-2 py-0.5 rounded text-[10px]"
+            role="status"
+            aria-live="polite"
+            className="inline-flex items-center gap-1.5 bg-black/20 px-2 py-0.5 rounded text-[10px]"
           >
             <RefreshCw className="h-2.5 w-2.5 animate-spin" />
             <span>
-              {job.title} {job.percent !== undefined ? `(${job.percent}%)` : "..."}
+              {job.title} {job.percent !== undefined ? `(${job.percent}%)` : "…"}
             </span>
             {job.cancelable !== false && (
               <button
                 type="button"
                 title="Cancel job"
+                aria-label={`Cancel ${job.title}`}
                 onClick={() => void cancelJob(job.jobId)}
-                className="rounded p-0.5 hover:bg-vscode-active hover:text-error"
+                className="rounded p-0.5 hover:bg-black/30 hover:text-red-200 transition-colors"
               >
                 <X className="h-2.5 w-2.5" />
               </button>
@@ -80,6 +88,7 @@ export const StatusBar: React.FC = () => {
 
         {gitVersion && (
           <div
+            role="status"
             title={`Git version ${gitVersion}`}
             className="inline-flex items-center gap-1 text-[10px] opacity-80 px-1"
           >
@@ -93,8 +102,10 @@ export const StatusBar: React.FC = () => {
         <button
           type="button"
           onClick={toggleGitOutput}
+          aria-label="Toggle Git Output panel"
+          aria-expanded={isGitOutputOpen}
           className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded transition-colors ${
-            isGitOutputOpen ? "bg-vscode-active font-medium" : "hover:bg-vscode-hover opacity-90"
+            isGitOutputOpen ? "bg-black/20 font-medium" : "hover:bg-white/10"
           }`}
           title="Toggle Git Output panel"
         >
