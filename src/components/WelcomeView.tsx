@@ -95,7 +95,7 @@ export const WelcomeView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleOpenFolder}
-                className="flex items-center gap-2.5 rounded border border-vscode-border bg-vscode-input p-3 text-left hover:bg-vscode-hover hover:border-vscode-accent transition-colors"
+                className="flex items-center gap-2.5 rounded border border-vscode-border bg-vscode-input p-3 text-left hover:bg-vscode-hover hover:border-vscode-accent focus-visible:ring-1 focus-visible:ring-vscode-accent transition-colors"
               >
                 <FolderOpen className="h-5 w-5 text-vscode-accent flex-shrink-0" />
                 <div className="flex flex-col">
@@ -105,8 +105,7 @@ export const WelcomeView: React.FC = () => {
                   </span>
                 </div>
               </button>
-
-              <div className="flex items-center gap-2.5 rounded border border-vscode-border bg-vscode-sidebar p-3 opacity-60">
+              <div className="flex items-center gap-2.5 rounded border border-vscode-border bg-vscode-sidebar p-3">
                 <GitFork className="h-5 w-5 text-vscode-muted flex-shrink-0" />
                 <div className="flex flex-col">
                   <span className="text-xs font-medium text-vscode-fg">Clone Repository (M1)</span>
@@ -158,13 +157,15 @@ export const WelcomeView: React.FC = () => {
           <div className="grid grid-cols-2 gap-2 text-[11px] text-vscode-muted">
             <div className="flex items-center justify-between">
               <span>Command Palette</span>
-              <kbd className="rounded border bg-vscode-bg px-1.5 py-0.5 text-[10px]">
+              <kbd className="rounded border border-vscode-border bg-vscode-bg px-1.5 py-0.5 text-[10px] font-mono text-vscode-muted">
                 Cmd/Ctrl+K
               </kbd>
             </div>
             <div className="flex items-center justify-between">
               <span>Toggle Git Output</span>
-              <kbd className="rounded border bg-vscode-bg px-1.5 py-0.5 text-[10px]">Status bar</kbd>
+              <kbd className="rounded border border-vscode-border bg-vscode-bg px-1.5 py-0.5 text-[10px] font-mono text-vscode-muted">
+                Status bar
+              </kbd>
             </div>
             {repoRoot && (
               <div className="flex items-center justify-between col-span-2">

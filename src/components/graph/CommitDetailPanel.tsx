@@ -209,7 +209,7 @@ export const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
       />
 
       {/* Header bar */}
-      <div className="flex items-center justify-between border-b border-vscode-border px-3 py-1.5 bg-vscode-activity text-xs">
+      <div className="flex items-center justify-between border-b border-vscode-border px-3 py-1.5 bg-vscode-sidebar text-xs">
         <div className="flex items-center gap-3 overflow-hidden">
           <div className="flex items-center gap-1 font-mono text-xs">
             <span className="text-vscode-muted">Commit:</span>
@@ -218,7 +218,8 @@ export const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
               type="button"
               onClick={copySha}
               title="Copy SHA"
-              className="rounded p-0.5 text-vscode-muted hover:text-vscode-fg hover:bg-vscode-hover"
+              aria-label="Copy SHA"
+              className="rounded p-0.5 text-vscode-muted hover:text-vscode-fg hover:bg-vscode-hover transition-colors"
             >
               {copiedSha ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
             </button>

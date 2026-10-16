@@ -191,10 +191,11 @@ export const Sidebar: React.FC = () => {
 
   return (
     <aside
+      aria-label={getTitle()}
       className="relative flex flex-shrink-0 flex-col border-r bg-vscode-sidebar select-none min-w-0"
       style={{ width: `${sidebarWidth}px` }}
     >
-      <div className="flex h-9 items-center justify-between border-b px-3 text-xs font-semibold uppercase text-vscode-muted tracking-wider">
+      <div className="flex h-9 items-center justify-between border-b px-3 text-[11px] font-semibold uppercase text-vscode-muted tracking-wider">
         <span>{getTitle()}</span>
       </div>
 
@@ -204,8 +205,17 @@ export const Sidebar: React.FC = () => {
       <div
         role="separator"
         aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        aria-valuenow={sidebarWidth}
+        aria-valuemin={180}
+        aria-valuemax={700}
+        tabIndex={0}
         onMouseDown={handleMouseDown}
-        className="absolute top-0 right-0 h-full w-1 cursor-col-resize hover:bg-vscode-accent transition-colors z-10"
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft") setSidebarWidth(sidebarWidth - 10);
+          if (e.key === "ArrowRight") setSidebarWidth(sidebarWidth + 10);
+        }}
+        className="absolute top-0 right-0 h-full cursor-col-resize hover:bg-vscode-accent active:bg-vscode-accent transition-colors z-10"
         style={{ width: "4px" }}
       />
     </aside>

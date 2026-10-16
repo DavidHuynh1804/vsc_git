@@ -1,5 +1,27 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Search, FolderOpen, Terminal, Settings, Sun, Moon, RefreshCw, FileText, GitPullRequest, GitGraph, GitMerge, Layers } from "lucide-react";
+import {
+  Search,
+  FolderOpen,
+  Terminal,
+  Settings,
+  Sun,
+  Moon,
+  RefreshCw,
+  FileText,
+  GitPullRequest,
+  GitGraph,
+  GitMerge,
+  Layers,
+  Check,
+  Plus,
+  Minus,
+  ArrowDown,
+  ArrowUp,
+  RotateCw,
+  FolderGit2,
+  GitBranch,
+  Archive,
+} from "lucide-react";
 import { useUIStore } from "@/stores/ui";
 import { useRepoStore } from "@/stores/repo";
 import { useScmStore } from "@/scm/scmStore";
@@ -78,54 +100,63 @@ export const CommandPalette: React.FC = () => {
         id: "git-commit",
         category: "Git",
         title: "Commit",
+        icon: Check,
         action: () => setActiveActivity("changes"),
       },
       {
         id: "git-stage-all",
         category: "Git",
         title: "Stage All Changes",
+        icon: Plus,
         action: () => stageAll(),
       },
       {
         id: "git-unstage-all",
         category: "Git",
         title: "Unstage All Changes",
+        icon: Minus,
         action: () => unstageAll(),
       },
       {
         id: "git-sync",
         category: "Git",
         title: "Sync (Pull & Push)",
+        icon: RefreshCw,
         action: () => sync(),
       },
       {
         id: "git-fetch",
         category: "Git",
         title: "Fetch",
+        icon: ArrowDown,
         action: () => fetch(),
       },
       {
         id: "git-pull",
         category: "Git",
         title: "Pull",
+        icon: ArrowDown,
         action: () => pull(),
       },
       {
         id: "git-push",
         category: "Git",
         title: "Push",
+        icon: ArrowUp,
         action: () => push(),
       },
       {
         id: "git-refresh",
         category: "Git",
         title: "Refresh Status",
+        icon: RotateCw,
         action: () => refreshStatus(),
       },
       {
         id: "view-changes",
         category: "View",
         title: "Show Source Control",
+        icon: FolderGit2,
         action: () => setActiveActivity("changes"),
       },
       {
@@ -151,12 +182,14 @@ export const CommandPalette: React.FC = () => {
         id: "view-branches",
         category: "View",
         title: "Show Branches",
+        icon: GitBranch,
         action: () => setActiveActivity("branches"),
       },
       {
         id: "view-stashes",
         category: "View",
         title: "Show Stashes",
+        icon: Archive,
         action: () => setActiveActivity("stashes"),
       },
       {
@@ -303,7 +336,8 @@ export const CommandPalette: React.FC = () => {
       role="dialog"
       aria-modal="true"
       aria-label="Command Palette"
-      className="fixed inset-0 z-50 flex items-start justify-center pt-12 select-none"
+      style={{ overscrollBehavior: "contain" }}
+      className="fixed inset-0 z-50 flex items-start justify-center pt-12 select-none bg-black/50"
       onClick={() => setCommandPaletteOpen(false)}
     >
       <div
@@ -315,6 +349,10 @@ export const CommandPalette: React.FC = () => {
           <input
             ref={inputRef}
             type="text"
+            name="commandQuery"
+            aria-label="Search commands"
+            autoComplete="off"
+            spellCheck={false}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -326,7 +364,7 @@ export const CommandPalette: React.FC = () => {
           />
         </div>
 
-        <div className="max-h-72 overflow-y-auto p-1 flex flex-col gap-0.5">
+        <div role="listbox" aria-label="Commands" className="max-h-72 overflow-y-auto p-1 flex flex-col gap-0.5">
           {filtered.length === 0 ? (
             <div className="p-3 text-center text-xs text-vscode-muted">No commands found</div>
           ) : (

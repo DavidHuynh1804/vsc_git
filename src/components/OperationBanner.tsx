@@ -97,16 +97,18 @@ export const OperationBanner: React.FC<OperationBannerProps> = ({
       <div
         role="region"
         aria-label="In-progress git operation"
-        className={`flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-200 select-none ${className}`}
+        className={`flex flex-col gap-2 border-b border-amber-500/30 bg-amber-500/10 p-2.5 text-xs select-none ${className}`}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <GitMerge className="h-4 w-4 shrink-0 text-amber-400" />
-          <span className="font-medium truncate text-vscode-fg">
-            {titleText}
-          </span>
+        <div className="flex items-center justify-between gap-1.5 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <GitMerge className="h-4 w-4 shrink-0 text-amber-500" />
+            <span className="font-medium truncate text-vscode-fg text-[11px]" title={titleText}>
+              {titleText}
+            </span>
+          </div>
           {hasConflict && (
             <span
-              className="inline-flex items-center gap-1 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300"
+              className="inline-flex items-center gap-1 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-500 shrink-0"
               title="Resolve all merge conflicts before continuing"
             >
               <AlertCircle className="h-3 w-3" />
@@ -115,20 +117,21 @@ export const OperationBanner: React.FC<OperationBannerProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 justify-end">
           <button
             type="button"
             disabled={hasConflict || isLoading}
             onClick={() => void handleContinue()}
+            aria-label="Continue operation"
             title={
               hasConflict
                 ? "Cannot continue while there are unresolved conflicts"
                 : "Continue operation"
             }
-            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
+            className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
               hasConflict || isLoading
-                ? "cursor-not-allowed bg-vscode-input text-vscode-muted opacity-60"
-                : "bg-vscode-accent text-white hover:brightness-110"
+                ? "cursor-not-allowed bg-vscode-input text-vscode-muted opacity-50"
+                : "bg-vscode-accent text-white hover:bg-vscode-accent-hover"
             }`}
           >
             <Play className="h-3 w-3 fill-current" />
@@ -139,8 +142,9 @@ export const OperationBanner: React.FC<OperationBannerProps> = ({
             type="button"
             disabled={isLoading}
             onClick={() => void handleSkip()}
+            aria-label="Skip current patch"
             title="Skip current patch"
-            className="inline-flex items-center gap-1 rounded border border-vscode-border bg-vscode-sidebar px-2 py-1 text-xs text-vscode-fg hover:bg-vscode-hover disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded border border-vscode-border bg-vscode-sidebar px-2 py-1 text-xs text-vscode-fg hover:bg-vscode-hover disabled:opacity-50 transition-colors"
           >
             <SkipForward className="h-3 w-3" />
             <span>Skip</span>
@@ -150,8 +154,9 @@ export const OperationBanner: React.FC<OperationBannerProps> = ({
             type="button"
             disabled={isLoading}
             onClick={() => setShowAbortConfirm(true)}
+            aria-label="Abort operation"
             title="Abort operation"
-            className="inline-flex items-center gap-1 rounded border border-vscode-border bg-vscode-sidebar px-2 py-1 text-xs text-error hover:bg-error/10 disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded border border-vscode-border bg-vscode-sidebar px-2 py-1 text-xs text-error hover:bg-vscode-hover disabled:opacity-50 transition-colors"
           >
             <XCircle className="h-3 w-3" />
             <span>Abort</span>

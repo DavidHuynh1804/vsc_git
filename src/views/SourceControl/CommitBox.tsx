@@ -195,40 +195,42 @@ export const CommitBox: React.FC = () => {
       <div className="relative flex flex-col">
         <textarea
           ref={textareaRef}
+          name="commitMessage"
+          aria-label="Commit message (Cmd+Enter to commit)"
+          spellCheck={false}
           value={message}
           onChange={handleTextChange}
           onKeyDown={handleKeyDown}
           placeholder="Message (Cmd+Enter to commit)"
           rows={3}
-          className="w-full resize-y rounded border border-vscode-border bg-vscode-input p-2 pr-14 text-xs font-mono text-vscode-fg placeholder-vscode-muted focus:border-vscode-accent focus:outline-none"
+          className="w-full resize-y rounded border border-vscode-border bg-vscode-input p-2 pr-14 text-xs font-mono text-vscode-fg placeholder:text-vscode-muted focus:border-vscode-accent focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-accent"
         />
-
         {/* AI & Undo buttons overlay */}
         <div className="absolute right-2 top-2 flex items-center gap-1">
           {previousMessage !== null && (
             <button
               type="button"
               title="Undo AI generation"
+              aria-label="Undo AI generation"
               onClick={handleUndoAi}
-              className="rounded p-1 text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg"
+              className="rounded p-1 text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg transition-colors"
             >
               <Undo2 className="h-3.5 w-3.5" />
             </button>
           )}
-
           <button
             type="button"
             title="Generate commit message with AI (Spec 8.5)"
+            aria-label="Generate commit message with AI (Spec 8.5)"
             disabled={isAiStreaming}
             onClick={handleAiGenerate}
-            className={`rounded p-1 text-vscode-accent hover:bg-vscode-hover ${
+            className={`rounded p-1 text-vscode-accent hover:bg-vscode-hover transition-colors ${
               isAiStreaming ? "animate-pulse opacity-60" : "hover:text-vscode-fg"
             }`}
           >
             <Sparkles className="h-3.5 w-3.5" />
           </button>
         </div>
-
         {/* Autocomplete suggestions dropdown */}
         {showSuggestions && (
           <div className="absolute top-full left-0 z-40 mt-1 max-h-48 w-full overflow-y-auto rounded border border-vscode-border bg-vscode-sidebar shadow-lg">
@@ -287,6 +289,7 @@ export const CommitBox: React.FC = () => {
           type="button"
           onClick={() => handleCommitAction()}
           disabled={!message.trim() && !isAmend}
+          aria-label={isAmend ? "Commit (Amend)" : "Commit"}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-l bg-vscode-accent px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           <Check className="h-3.5 w-3.5" />
@@ -295,12 +298,15 @@ export const CommitBox: React.FC = () => {
 
         <button
           type="button"
+          aria-label="More commit actions"
+          aria-haspopup="true"
+          aria-expanded={isMenuOpen}
+          title="More commit actions"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
-          className="flex items-center rounded-r border-l border-white/20 bg-vscode-accent px-2 text-white hover:opacity-90"
+          className="flex items-center rounded-r border-l border-white/20 bg-vscode-accent px-2 text-white hover:opacity-90 transition-opacity"
         >
           <ChevronDown className="h-3.5 w-3.5" />
         </button>
-
         {/* Dropdown Menu */}
         {isMenuOpen && (
           <div className="absolute top-full right-0 z-30 mt-1 min-w-[180px] rounded border border-vscode-border bg-vscode-sidebar py-1 shadow-lg text-xs">

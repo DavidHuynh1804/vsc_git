@@ -14,15 +14,15 @@ export const GitOutputPanel: React.FC = () => {
       if (res.status === "ok") {
         setLogs(res.data);
       }
-    });
+    }).catch(() => {});
 
     // Listen to real-time git://output events
     const unlistenPromise = events.gitOutput.listen((event) => {
       setLogs((prev) => [...prev, event.payload]);
-    });
+    }).catch(() => () => {});
 
     return () => {
-      unlistenPromise.then((unlisten) => unlisten());
+      unlistenPromise.then((unlisten) => unlisten?.()).catch(() => {});
     };
   }, []);
 

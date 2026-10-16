@@ -49,22 +49,25 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      aria-labelledby="confirm-dialog-title"
+      style={{ overscrollBehavior: "contain" }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onClick={onCancel}
     >
       <div
-        className="flex w-full max-w-md flex-col rounded border border-vscode-border bg-vscode-sidebar p-4 shadow-2xl"
+        className="flex w-full max-w-md flex-col rounded-lg border border-vscode-border bg-vscode-sidebar p-4 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-vscode-border pb-3">
           <div className="flex items-center gap-2">
-            {isDestructive && <AlertTriangle className="h-4 w-4 text-error" />}
-            <h3 className="text-sm font-semibold text-vscode-fg">{title}</h3>
+            {isDestructive && <AlertTriangle className="h-4 w-4 text-error shrink-0" />}
+            <h3 id="confirm-dialog-title" className="text-sm font-semibold text-vscode-fg">{title}</h3>
           </div>
           <button
             type="button"
+            aria-label="Close dialog"
             onClick={onCancel}
-            className="rounded p-1 text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg"
+            className="rounded p-1 text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg transition-colors"
           >
             <X className="h-3.5 w-3.5" />
           </button>

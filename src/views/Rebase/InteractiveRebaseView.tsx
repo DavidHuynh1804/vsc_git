@@ -253,6 +253,7 @@ export const InteractiveRebaseView: React.FC<InteractiveRebaseViewProps> = ({
               {/* Action Dropdown */}
               <select
                 value={entry.action}
+                aria-label={`Action for commit ${entry.sha.slice(0, 7)}`}
                 onChange={(e) => handleActionChange(index, e.target.value as RebaseAction)}
                 className={`rounded border px-2 py-0.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-vscode-accent cursor-pointer ${color.bg} ${color.text} ${color.border}`}
               >
@@ -263,7 +264,6 @@ export const InteractiveRebaseView: React.FC<InteractiveRebaseViewProps> = ({
                 <option value="fixup">fixup</option>
                 <option value="drop">drop</option>
               </select>
-
               {/* Commit SHA */}
               <span className="font-mono text-[11px] text-vscode-muted w-16 shrink-0">
                 {entry.sha.slice(0, 7)}
@@ -289,7 +289,8 @@ export const InteractiveRebaseView: React.FC<InteractiveRebaseViewProps> = ({
                     type="button"
                     onClick={() => setEditingEntry({ index, entry })}
                     title="Edit commit message"
-                    className="rounded p-1 hover:bg-vscode-active hover:text-vscode-accent"
+                    aria-label={`Edit commit message for ${entry.sha.slice(0, 7)}`}
+                    className="rounded p-1 hover:bg-vscode-active hover:text-vscode-accent transition-colors"
                   >
                     <Edit2 className="h-3.5 w-3.5" />
                   </button>
@@ -301,7 +302,8 @@ export const InteractiveRebaseView: React.FC<InteractiveRebaseViewProps> = ({
                   disabled={index === 0}
                   onClick={() => handleMove(index, index - 1)}
                   title="Move up (Alt+↑)"
-                  className="rounded p-1 hover:bg-vscode-active hover:text-vscode-fg disabled:opacity-20"
+                  aria-label={`Move commit ${entry.sha.slice(0, 7)} up`}
+                  className="rounded p-1 hover:bg-vscode-active hover:text-vscode-fg disabled:opacity-20 transition-colors"
                 >
                   <ArrowUp className="h-3.5 w-3.5" />
                 </button>
@@ -312,7 +314,8 @@ export const InteractiveRebaseView: React.FC<InteractiveRebaseViewProps> = ({
                   disabled={index === entries.length - 1}
                   onClick={() => handleMove(index, index + 1)}
                   title="Move down (Alt+↓)"
-                  className="rounded p-1 hover:bg-vscode-active hover:text-vscode-fg disabled:opacity-20"
+                  aria-label={`Move commit ${entry.sha.slice(0, 7)} down`}
+                  className="rounded p-1 hover:bg-vscode-active hover:text-vscode-fg disabled:opacity-20 transition-colors"
                 >
                   <ArrowDown className="h-3.5 w-3.5" />
                 </button>
@@ -324,7 +327,8 @@ export const InteractiveRebaseView: React.FC<InteractiveRebaseViewProps> = ({
                     handleActionChange(index, entry.action === "drop" ? "pick" : "drop")
                   }
                   title={entry.action === "drop" ? "Restore commit (pick)" : "Drop commit"}
-                  className="rounded p-1 hover:bg-vscode-active hover:text-error"
+                  aria-label={entry.action === "drop" ? `Restore commit ${entry.sha.slice(0, 7)}` : `Drop commit ${entry.sha.slice(0, 7)}`}
+                  className="rounded p-1 hover:bg-vscode-active hover:text-error transition-colors"
                 >
                   {entry.action === "drop" ? (
                     <RotateCcw className="h-3.5 w-3.5 text-emerald-400" />

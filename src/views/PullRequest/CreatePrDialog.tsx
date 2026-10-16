@@ -295,6 +295,7 @@ export const CreatePrDialog: React.FC<CreatePrDialogProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-pr-title"
+      style={{ overscrollBehavior: "contain" }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 select-none backdrop-blur-[1px]"
     >
       <div className="flex w-full max-w-2xl max-h-[90vh] flex-col rounded-lg border border-vscode-border bg-vscode-sidebar shadow-2xl text-vscode-fg overflow-hidden">
@@ -310,8 +311,9 @@ export const CreatePrDialog: React.FC<CreatePrDialogProps> = ({
           <button
             type="button"
             title="Close dialog"
+            aria-label="Close dialog"
             onClick={onClose}
-            className="rounded p-1 text-vscode-muted hover:text-vscode-fg hover:bg-vscode-hover"
+            className="rounded p-1 text-vscode-muted hover:text-vscode-fg hover:bg-vscode-hover transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
