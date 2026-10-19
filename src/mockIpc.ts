@@ -20,7 +20,7 @@ export function setupMockIpc() {
       case "get_current_repo":
         return { root: "/workspace/vsc_git", head_branch: "main" };
       case "recent_repos":
-        return [{ root: "/workspace/vsc_git", last_opened: Date.now() }];
+        return [{ path: "/workspace/vsc_git", name: "vsc_git", last_opened: Date.now() }];
       case "open_repo":
         return {
           root:

@@ -80,7 +80,7 @@ export const OperationBanner: React.FC<OperationBannerProps> = ({
     const onto = state.onto ?? "upstream";
     const step = state.step ?? 1;
     const total = state.total ?? 1;
-    titleText = `Rebasing \`${branch}\` onto \`${onto}\` — bước ${step}/${total}`;
+    titleText = `Rebasing \`${branch}\` onto \`${onto}\` - step ${step}/${total}`;
   } else if (state.kind === "Merging") {
     const target = state.commit_id ? `commit \`${state.commit_id.slice(0, 7)}\`` : "";
     titleText = `Merging ${target}`.trim();

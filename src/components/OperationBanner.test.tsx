@@ -25,7 +25,7 @@ describe("OperationBanner", () => {
 
     render(<OperationBanner operationState={state} hasConflict={false} />);
     expect(
-      screen.getByText(/Rebasing `feat-m3` onto `main` — bước 3\/7/i)
+      screen.getByText(/Rebasing `feat-m3` onto `main` - step 3\/7/i)
     ).toBeInTheDocument();
   });
 

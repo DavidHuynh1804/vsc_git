@@ -429,7 +429,7 @@ export const MergeEditorView: React.FC<MergeEditorViewProps> = ({
         {/* Bottom Pane (Result Editor - Editable) */}
         <div className="flex flex-1 flex-col min-h-[180px] overflow-hidden">
           <div className="flex items-center justify-between bg-vscode-activity px-2 py-1 text-[11px] font-semibold text-vscode-fg border-b border-vscode-border select-none">
-            <span>Result (Working Tree with conflict markers — editable)</span>
+            <span>Result (Working Tree with conflict markers - editable)</span>
             <span className="text-[10px] text-vscode-muted">
               Auto-saved to result buffer. Click &quot;Mark as Resolved&quot; to stage.
             </span>

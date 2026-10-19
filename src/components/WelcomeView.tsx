@@ -132,17 +132,21 @@ export const WelcomeView: React.FC = () => {
               </div>
             ) : (
               <div className="flex flex-col gap-1.5 max-h-56 overflow-y-auto">
-                {recentRepos.map((repo) => (
-                  <button
-                    key={repo.path}
-                    type="button"
-                    onClick={() => handleOpenRecent(repo.path)}
-                    className="flex flex-col rounded border border-vscode-border bg-vscode-input p-2 text-left hover:bg-vscode-hover hover:border-vscode-accent transition-colors"
-                  >
-                    <span className="text-xs font-medium text-vscode-fg">{repo.name}</span>
-                    <span className="text-[10px] text-vscode-muted truncate">{repo.path}</span>
-                  </button>
-                ))}
+                {recentRepos.map((repo) => {
+                  const rPath = repo.path || ("root" in repo && typeof repo.root === "string" ? repo.root : "");
+                  const rName = repo.name || rPath.split("/").filter(Boolean).pop() || "repository";
+                  return (
+                    <button
+                      key={rPath || rName}
+                      type="button"
+                      onClick={() => handleOpenRecent(rPath)}
+                      className="flex flex-col rounded border border-vscode-border bg-vscode-input p-2 text-left hover:bg-vscode-hover hover:border-vscode-accent transition-colors"
+                    >
+                      <span className="text-xs font-medium text-vscode-fg">{rName}</span>
+                      <span className="text-[10px] text-vscode-muted truncate">{rPath}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>

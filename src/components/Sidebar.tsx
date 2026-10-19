@@ -195,9 +195,6 @@ export const Sidebar: React.FC = () => {
       className="relative flex flex-shrink-0 flex-col border-r bg-vscode-sidebar select-none min-w-0"
       style={{ width: `${sidebarWidth}px` }}
     >
-      <div className="flex h-9 items-center justify-between border-b px-3 text-[11px] font-semibold uppercase text-vscode-muted tracking-wider">
-        <span>{getTitle()}</span>
-      </div>
 
       <div className="flex-1 overflow-y-auto">{renderContent()}</div>
 

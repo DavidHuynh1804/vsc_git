@@ -93,7 +93,7 @@ export const StatusBar: React.FC = () => {
             className="inline-flex items-center gap-1 text-[10px] opacity-80 px-1"
           >
             <CheckCircle2 className="h-2.5 w-2.5 text-success" />
-            <span>git {gitVersion}</span>
+            <span>{gitVersion.startsWith("git ") ? gitVersion : `git ${gitVersion}`}</span>
           </div>
         )}
       </div>
