@@ -17,7 +17,7 @@ import { UpdateNotification } from "@/components/UpdateNotification";
 
 export default function App() {
   const { error, setError, setRepo, headBranch, repoRoot } = useRepoStore();
-  const { isCreatePrOpen, setCreatePrOpen, theme, setTheme } = useUIStore();
+  const { isCreatePrOpen, setCreatePrOpen, theme, setTheme, openTab } = useUIStore();
   const { error: scmError, setError: setScmError } = useScmStore();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -35,6 +35,13 @@ export default function App() {
       return () => mediaQuery.removeEventListener?.("change", handleChange);
     }
   }, [theme, setTheme]);
+
+  // Show the Git Graph as the main view whenever a repository is opened
+  useEffect(() => {
+    if (repoRoot) {
+      openTab({ id: "graph", title: "Git Graph", closable: true });
+    }
+  }, [repoRoot, openTab]);
 
   // Check initial opened repo if any
   useEffect(() => {
