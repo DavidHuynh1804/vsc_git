@@ -108,7 +108,10 @@ impl GraphWalker {
                     }
                 };
 
-                if is_tip && seen_tips.insert(oid) {
+                // Tags may point at trees or blobs (e.g. `git tag x HEAD^{tree}`); the topo
+                // walker rejects non-commit tips, so only commits become walk roots.
+                if is_tip && !seen_tips.contains(&oid) && is_commit(&repo, oid) {
+                    seen_tips.insert(oid);
                     tips.push(oid);
                 }
             }
@@ -306,4 +309,10 @@ impl GraphWalker {
             has_more,
         })
     }
+}
+
+fn is_commit(repo: &ReadRepo, oid: gix::ObjectId) -> bool {
+    repo.gix_repo()
+        .find_header(oid)
+        .is_ok_and(|header| header.kind() == gix::object::Kind::Commit)
 }

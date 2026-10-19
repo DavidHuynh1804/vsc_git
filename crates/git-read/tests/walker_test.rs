@@ -206,3 +206,46 @@ fn test_walker_with_submodule() {
     assert_eq!(page.commits[0].subject, "add submodule");
     assert_eq!(page.commits[1].subject, "parent init");
 }
+
+#[test]
+fn test_walker_skips_refs_pointing_to_non_commits() {
+    let dir = TempDir::new().unwrap();
+    let repo_dir = dir.path();
+
+    run_git(repo_dir, &["init", "-b", "main"]);
+    std::fs::write(repo_dir.join("file.txt"), "c1\n").unwrap();
+    run_git(repo_dir, &["add", "file.txt"]);
+    run_git(repo_dir, &["commit", "-m", "Commit 1"]);
+    std::fs::write(repo_dir.join("file.txt"), "c2\n").unwrap();
+    run_git(repo_dir, &["commit", "-am", "Commit 2"]);
+
+    // Lightweight and annotated tags that point at a tree and a blob, not a commit.
+    run_git(repo_dir, &["tag", "tree-tag", "HEAD^{tree}"]);
+    run_git(
+        repo_dir,
+        &[
+            "tag",
+            "-a",
+            "annotated-tree-tag",
+            "-m",
+            "tree",
+            "HEAD^{tree}",
+        ],
+    );
+    run_git(repo_dir, &["tag", "blob-tag", "HEAD:file.txt"]);
+
+    let repo = ReadRepo::open(repo_dir).unwrap();
+
+    for force_fallback in [false, true] {
+        let mut walker = GraphWalker::new(repo.clone(), GraphFilter::default())
+            .unwrap()
+            .with_forced_fallback(force_fallback);
+        let page = walker.next_page(100).unwrap();
+        let subjects: Vec<_> = page.commits.iter().map(|c| c.subject.as_str()).collect();
+        assert_eq!(
+            subjects,
+            vec!["Commit 2", "Commit 1"],
+            "fallback={force_fallback}"
+        );
+    }
+}
