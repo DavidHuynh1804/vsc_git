@@ -20,7 +20,7 @@ export interface DiffViewProps {
 }
 
 export const DiffView: React.FC<DiffViewProps> = ({ filePath, context = "unstaged" }) => {
-  const { dataSource, diffSideBySide, diffIgnoreWhitespace, refreshStatus } = useScmStore();
+  const { dataSource, diffSideBySide, diffIgnoreWhitespace, refreshStatus, status } = useScmStore();
   const { theme } = useUIStore();
 
   const [originalContent, setOriginalContent] = useState<string>("");
@@ -38,6 +38,21 @@ export const DiffView: React.FC<DiffViewProps> = ({ filePath, context = "unstage
   const isImage = IMAGE_EXTENSIONS.has(ext);
   const isBinary = BINARY_EXTENSIONS.has(ext);
 
+  // `git show` fails for a path absent from HEAD or the index, so sides that cannot exist
+  // (untracked/added files, staged deletions) are shown as empty instead of being fetched.
+  const entry = status?.entries.find((e) => e.path === filePath);
+  const stagedStatus =
+    entry?.kind.type === "Ordinary" || entry?.kind.type === "RenamedOrCopied"
+      ? entry.kind.staged
+      : undefined;
+  const leftMissing =
+    context === "untracked" ||
+    entry?.kind.type === "Untracked" ||
+    (isStaged && stagedStatus === "Added");
+  const rightMissing = isStaged && stagedStatus === "Deleted";
+  const leftPath =
+    isStaged && entry?.kind.type === "RenamedOrCopied" ? entry.kind.orig_path : filePath;
+
   // Load original and modified contents
   useEffect(() => {
     let active = true;
@@ -47,21 +62,26 @@ export const DiffView: React.FC<DiffViewProps> = ({ filePath, context = "unstage
     const rightRev: FileRev = isStaged ? { kind: "Index" } : { kind: "Worktree" };
 
     Promise.all([
-      dataSource.fileContent(filePath, leftRev),
-      dataSource.fileContent(filePath, rightRev),
-    ]).then(([left, right]) => {
-      if (!active) return;
-      setOriginalContent(left);
-      setModifiedContent(right);
-      setCurrentModifiedValue(right);
-      setIsDirty(false);
-      setIsLoading(false);
-    });
+      leftMissing ? Promise.resolve("") : dataSource.fileContent(leftPath, leftRev),
+      rightMissing ? Promise.resolve("") : dataSource.fileContent(filePath, rightRev),
+    ])
+      .then(([left, right]) => {
+        if (!active) return;
+        setOriginalContent(left);
+        setModifiedContent(right);
+        setCurrentModifiedValue(right);
+        setIsDirty(false);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        // The data source already reported the error; just stop the loading state.
+        if (active) setIsLoading(false);
+      });
 
     return () => {
       active = false;
     };
-  }, [dataSource, filePath, isStaged]);
+  }, [dataSource, filePath, isStaged, leftMissing, rightMissing, leftPath]);
 
   const handleSave = useCallback(async () => {
     if (!isWorktree || !isDirty) return;
