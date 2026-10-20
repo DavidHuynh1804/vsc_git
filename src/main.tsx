@@ -1,3 +1,6 @@
+// Must stay the first import: installs the E2E bridge shim (Chromium only,
+// when VITE_E2E_BRIDGE=1) before any module captures `isMock()`.
+import "./e2eBridge";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

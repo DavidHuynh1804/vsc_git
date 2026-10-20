@@ -38,7 +38,7 @@ test.describe("vsc_git core user flows (web mock)", () => {
 
   test("Flow 2: graph -> cherry-pick", async ({ page }) => {
     // 1. Navigate to Graph view via ActivityBar
-    const graphNavBtn = page.getByRole("button", { name: /Git Graph/i });
+    const graphNavBtn = page.getByRole("button", { name: "Git Graph", exact: true });
     await expect(graphNavBtn).toBeVisible();
     await graphNavBtn.click();
 

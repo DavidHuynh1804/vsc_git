@@ -1,5 +1,7 @@
 pub mod app;
 pub mod commands;
+#[cfg(debug_assertions)]
+pub mod e2e_bridge;
 pub mod error;
 pub mod git_exec;
 pub mod repo;
@@ -145,6 +147,11 @@ pub fn run() {
         .setup(move |app| {
             builder.mount_events(app);
             crate::git_exec::set_global_app_handle(app.handle().clone());
+
+            // Dev/test-only: start the Playwright bridge when the environment
+            // variable is set. No-op (and not compiled) in release builds.
+            #[cfg(debug_assertions)]
+            crate::e2e_bridge::maybe_start(app.handle());
 
             if let Ok(exit_ms_str) = std::env::var("VSC_GIT_SMOKE_EXIT_AFTER_MS") {
                 if let Ok(exit_ms) = exit_ms_str.trim().parse::<u64>() {
