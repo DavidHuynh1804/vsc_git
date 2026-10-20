@@ -17,6 +17,7 @@ export interface UIState {
   isCommandPaletteOpen: boolean;
   theme: "dark" | "light" | "system";
   isCreatePrOpen: boolean;
+  isBranchPickerOpen: boolean;
   tabs: TabItem[];
   activeTabId: string;
   selectedGraphSha: string | null;
@@ -29,6 +30,7 @@ export interface UIState {
   setCommandPaletteOpen: (open: boolean) => void;
   setTheme: (theme: "dark" | "light" | "system") => void;
   setCreatePrOpen: (open: boolean) => void;
+  setBranchPickerOpen: (open: boolean) => void;
   openTab: (tab: TabItem) => void;
   closeTab: (id: string) => void;
   setActiveTabId: (id: string) => void;
@@ -43,6 +45,7 @@ export const useUIStore = create<UIState>((set) => ({
   isCommandPaletteOpen: false,
   theme: "system",
   isCreatePrOpen: false,
+  isBranchPickerOpen: false,
   tabs: [{ id: "welcome", title: "Welcome", closable: false }],
   activeTabId: "welcome",
   selectedGraphSha: null,
@@ -82,6 +85,7 @@ export const useUIStore = create<UIState>((set) => ({
     set({ theme });
   },
   setCreatePrOpen: (isCreatePrOpen) => set({ isCreatePrOpen }),
+  setBranchPickerOpen: (isBranchPickerOpen) => set({ isBranchPickerOpen }),
 
   openTab: (tab) =>
     set((state) => {

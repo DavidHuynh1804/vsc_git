@@ -7,7 +7,7 @@ import { commands } from "@/bindings";
 
 export const StatusBar: React.FC = () => {
   const { headBranch, gitVersion, setGitVersion } = useRepoStore();
-  const { isGitOutputOpen, toggleGitOutput } = useUIStore();
+  const { isGitOutputOpen, toggleGitOutput, setBranchPickerOpen } = useUIStore();
   const { status, activeJobs, sync, cancelJob } = useScmStore();
 
   useEffect(() => {
@@ -34,14 +34,16 @@ export const StatusBar: React.FC = () => {
     >
       <div className="flex items-center gap-2">
         {currentBranch ? (
-          <div
-            role="status"
+          <button
+            type="button"
             title={`Current branch: ${currentBranch}`}
-            className="inline-flex items-center gap-1 hover:bg-white/10 px-1.5 py-0.5 rounded cursor-default font-mono"
+            aria-label={`Switch branch (current: ${currentBranch})`}
+            onClick={() => setBranchPickerOpen(true)}
+            className="inline-flex items-center gap-1 hover:bg-white/10 active:bg-white/20 px-1.5 py-0.5 rounded cursor-pointer font-mono transition-colors"
           >
             <GitBranch className="h-3 w-3" />
             <span className="font-sans font-medium">{currentBranch}</span>
-          </div>
+          </button>
         ) : (
           <div className="inline-flex items-center gap-1 opacity-80 px-1.5 py-0.5">
             <span>No Repo</span>

@@ -23,8 +23,8 @@ import {
   Archive,
 } from "lucide-react";
 import { useUIStore } from "@/stores/ui";
-import { useRepoStore } from "@/stores/repo";
 import { useScmStore } from "@/scm/scmStore";
+import { pickAndOpenRepository } from "@/stores/openRepository";
 import { commands } from "@/bindings";
 
 export interface PaletteCommand {
@@ -54,8 +54,8 @@ export const CommandPalette: React.FC = () => {
     setTheme,
     openTab,
     setCreatePrOpen,
+    setBranchPickerOpen,
   } = useUIStore();
-  const { setRepo, setLoading, setError } = useRepoStore();
 
   const { status: scmStatus, stageAll, unstageAll, sync, fetch, pull, push, refreshStatus } = useScmStore();
   const [query, setQuery] = useState("");
@@ -69,25 +69,21 @@ export const CommandPalette: React.FC = () => {
         category: "Git",
         title: "Open Repository...",
         icon: FolderOpen,
-        action: async () => {
-          try {
-            setLoading(true);
-            const picked = await commands.pickFolder();
-            if (picked.status === "ok" && picked.data) {
-              const opened = await commands.openRepo(picked.data);
-              if (opened.status === "ok") {
-                setRepo(opened.data);
-                openTab({ id: "graph", title: "Git Graph", closable: true });
-              } else {
-                setError(opened.error.message);
-              }
-            }
-          } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : "Failed to open folder");
-          } finally {
-            setLoading(false);
-          }
-        },
+        action: () => pickAndOpenRepository(),
+      },
+      {
+        id: "git-create-branch",
+        category: "Git",
+        title: "Create Branch...",
+        icon: GitBranch,
+        action: () => setBranchPickerOpen(true),
+      },
+      {
+        id: "git-checkout",
+        category: "Git",
+        title: "Checkout to...",
+        icon: GitBranch,
+        action: () => setBranchPickerOpen(true),
       },
       {
         id: "toggle-git-output",
@@ -266,7 +262,7 @@ export const CommandPalette: React.FC = () => {
         action: () => window.location.reload(),
       },
     ],
-    [openTab, setActiveActivity, setCreatePrOpen, setError, setLoading, setRepo, setTheme, theme, toggleGitOutput]
+    [openTab, setActiveActivity, setBranchPickerOpen, setCreatePrOpen, setTheme, theme, toggleGitOutput]
   );
 
   const filtered = useMemo(() => filterCommands(commandList, query), [commandList, query]);

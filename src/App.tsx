@@ -6,6 +6,7 @@ import { EditorArea } from "@/components/EditorArea";
 import { GitOutputPanel } from "@/components/GitOutputPanel";
 import { StatusBar } from "@/components/StatusBar";
 import { CommandPalette } from "@/components/CommandPalette";
+import { BranchPicker } from "@/components/BranchPicker";
 import { ErrorToast } from "@/components/ErrorToast";
 import { useRepoStore } from "@/stores/repo";
 import { useScmStore } from "@/scm/scmStore";
@@ -102,6 +103,7 @@ export default function App() {
 
       <StatusBar />
       <CommandPalette />
+      <BranchPicker />
       <CreatePrDialog
         isOpen={isCreatePrOpen}
         onClose={() => setCreatePrOpen(false)}
