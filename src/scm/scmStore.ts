@@ -6,6 +6,7 @@ import {
 } from "./dataSource";
 import { isMock } from "@/env";
 import { setGlobalErrorHandler } from "@/utils/errors";
+import { useRepoStore } from "@/stores/repo";
 import {
   RepoStatus,
   RefList,
@@ -97,6 +98,26 @@ export const useScmStore = create<ScmState>((set, get) => {
     void get().refreshStashes();
   });
 
+  const trackJob = (jobId: JobId) => {
+    get().dataSource.subscribeJobProgress(jobId, (progress) => {
+      const next = new Map(get().activeJobs);
+      if (progress.percent && progress.percent >= 100) {
+        next.delete(jobId);
+        set({ activeJobs: next });
+        if (progress.error) {
+          set({
+            error: { kind: "Internal", message: progress.error, git_stderr: progress.error, hint: null },
+          });
+        }
+        void get().refreshStatus();
+        void get().refreshRefs();
+      } else {
+        next.set(jobId, progress);
+        set({ activeJobs: next });
+      }
+    });
+  };
+
   return {
     dataSource: defaultDataSource,
     status: null,
@@ -125,6 +146,11 @@ export const useScmStore = create<ScmState>((set, get) => {
       try {
         const status = await get().dataSource.getStatus();
         set({ status });
+        // Keep the titlebar / PR dialog branch in sync after checkout, rebase, etc.
+        const head = status.branch.head || null;
+        if (head && useRepoStore.getState().headBranch !== head) {
+          useRepoStore.getState().setHeadBranch(head);
+        }
       } catch (err: unknown) {
         if (err && typeof err === "object" && "kind" in err) {
           set({ error: err as AppError });
@@ -402,54 +428,22 @@ export const useScmStore = create<ScmState>((set, get) => {
 
     fetch: async () => {
       const jobId = await get().dataSource.fetch();
-      get().dataSource.subscribeJobProgress(jobId, (progress) => {
-        const next = new Map(get().activeJobs);
-        if (progress.percent && progress.percent >= 100) {
-          next.delete(jobId);
-        } else {
-          next.set(jobId, progress);
-        }
-        set({ activeJobs: next });
-      });
+      trackJob(jobId);
     },
 
     pull: async () => {
       const jobId = await get().dataSource.pull();
-      get().dataSource.subscribeJobProgress(jobId, (progress) => {
-        const next = new Map(get().activeJobs);
-        if (progress.percent && progress.percent >= 100) {
-          next.delete(jobId);
-        } else {
-          next.set(jobId, progress);
-        }
-        set({ activeJobs: next });
-      });
+      trackJob(jobId);
     },
 
     push: async () => {
       const jobId = await get().dataSource.push();
-      get().dataSource.subscribeJobProgress(jobId, (progress) => {
-        const next = new Map(get().activeJobs);
-        if (progress.percent && progress.percent >= 100) {
-          next.delete(jobId);
-        } else {
-          next.set(jobId, progress);
-        }
-        set({ activeJobs: next });
-      });
+      trackJob(jobId);
     },
 
     sync: async () => {
       const jobId = await get().dataSource.sync();
-      get().dataSource.subscribeJobProgress(jobId, (progress) => {
-        const next = new Map(get().activeJobs);
-        if (progress.percent && progress.percent >= 100) {
-          next.delete(jobId);
-        } else {
-          next.set(jobId, progress);
-        }
-        set({ activeJobs: next });
-      });
+      trackJob(jobId);
     },
 
     cancelJob: async (id) => {

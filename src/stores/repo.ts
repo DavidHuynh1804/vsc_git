@@ -11,6 +11,7 @@ export interface RepoState {
   error: string | null;
 
   setRepo: (info: RepoInfo | null) => void;
+  setHeadBranch: (branch: string | null) => void;
   setRecentRepos: (repos: RecentRepo[]) => void;
   setGitVersion: (version: string) => void;
   setLoading: (loading: boolean) => void;
@@ -29,11 +30,12 @@ export const useRepoStore = create<RepoState>((set) => ({
   setRepo: (info) =>
     set({
       repoRoot: info?.root ?? null,
-      repoName: info ? (info.root.split("/").filter(Boolean).pop() || info.root) : null,
+      repoName: info ? (info.root.split(/[\\/]/).filter(Boolean).pop() || info.root) : null,
       headBranch: info?.head_branch ?? null,
       error: null,
     }),
 
+  setHeadBranch: (headBranch) => set({ headBranch }),
   setRecentRepos: (recentRepos) => set({ recentRepos }),
   setGitVersion: (gitVersion) => set({ gitVersion }),
   setLoading: (isLoading) => set({ isLoading }),

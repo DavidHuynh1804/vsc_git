@@ -1,14 +1,17 @@
-import React, { useEffect } from "react";
-import { FolderOpen, History, GitFork, Sparkles, FolderGit2 } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { FolderOpen, FolderPlus, History, GitFork, Sparkles, FolderGit2 } from "lucide-react";
 import { useRepoStore } from "@/stores/repo";
-import { useUIStore } from "@/stores/ui";
-import { commands, RepoInfo } from "@/bindings";
-import { useScmStore } from "@/scm/scmStore";
-import { useM3Store } from "@/m3/m3Store";
+import { commands } from "@/bindings";
+import { PromptDialog } from "@/components/PromptDialog";
+import {
+  cloneRepository,
+  initRepository,
+  openRepository,
+  pickAndOpenRepository,
+} from "@/stores/openRepository";
 
 export const WelcomeView: React.FC = () => {
-  const { recentRepos, setRecentRepos, setRepo, setLoading, setError, repoRoot } = useRepoStore();
-  const { openTab } = useUIStore();
+  const { recentRepos, setRecentRepos, repoRoot } = useRepoStore();
 
   useEffect(() => {
     commands.recentRepos().then((res) => {
@@ -18,55 +21,8 @@ export const WelcomeView: React.FC = () => {
     });
   }, [setRecentRepos]);
 
-  const onRepoOpened = async (repoInfo: RepoInfo) => {
-    setRepo(repoInfo);
-    const scm = useScmStore.getState();
-    void scm.refreshStatus();
-    void scm.refreshRefs();
-    void scm.refreshStashes();
-    const m3 = useM3Store.getState();
-    void m3.refreshOperationState();
-    const recent = await commands.recentRepos();
-    if (recent.status === "ok") {
-      setRecentRepos(recent.data);
-    }
-    openTab({ id: "graph", title: "Git Graph", closable: true });
-  };
+  const [isCloneOpen, setIsCloneOpen] = useState(false);
 
-  const handleOpenFolder = async () => {
-    try {
-      setLoading(true);
-      const picked = await commands.pickFolder();
-      if (picked.status === "ok" && picked.data) {
-        const opened = await commands.openRepo(picked.data);
-        if (opened.status === "ok") {
-          await onRepoOpened(opened.data);
-        } else {
-          setError(opened.error.message);
-        }
-      }
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to open repository");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleOpenRecent = async (path: string) => {
-    try {
-      setLoading(true);
-      const opened = await commands.openRepo(path);
-      if (opened.status === "ok") {
-        await onRepoOpened(opened.data);
-      } else {
-        setError(opened.error.message);
-      }
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to open repository");
-    } finally {
-      setLoading(false);
-    }
-  };
   return (
     <div className="flex h-full w-full flex-col items-center justify-center p-8 select-none text-vscode-fg overflow-y-auto">
       <div className="flex max-w-2xl w-full flex-col gap-8">
@@ -94,7 +50,7 @@ export const WelcomeView: React.FC = () => {
             <div className="flex flex-col gap-2">
               <button
                 type="button"
-                onClick={handleOpenFolder}
+                onClick={() => void pickAndOpenRepository()}
                 className="flex items-center gap-2.5 rounded border border-vscode-border bg-vscode-input p-3 text-left hover:bg-vscode-hover hover:border-vscode-accent focus-visible:ring-1 focus-visible:ring-vscode-accent transition-colors"
               >
                 <FolderOpen className="h-5 w-5 text-vscode-accent flex-shrink-0" />
@@ -105,15 +61,32 @@ export const WelcomeView: React.FC = () => {
                   </span>
                 </div>
               </button>
-              <div className="flex items-center gap-2.5 rounded border border-vscode-border bg-vscode-sidebar p-3">
-                <GitFork className="h-5 w-5 text-vscode-muted flex-shrink-0" />
+              <button
+                type="button"
+                onClick={() => setIsCloneOpen(true)}
+                className="flex items-center gap-2.5 rounded border border-vscode-border bg-vscode-input p-3 text-left hover:bg-vscode-hover hover:border-vscode-accent focus-visible:ring-1 focus-visible:ring-vscode-accent transition-colors"
+              >
+                <GitFork className="h-5 w-5 text-vscode-accent flex-shrink-0" />
                 <div className="flex flex-col">
-                  <span className="text-xs font-medium text-vscode-fg">Clone Repository (M1)</span>
+                  <span className="text-xs font-medium text-vscode-fg">Clone Repository</span>
                   <span className="text-[11px] text-vscode-muted">
                     Clone from GitHub or GitLab remote URL
                   </span>
                 </div>
-              </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => void initRepository()}
+                className="flex items-center gap-2.5 rounded border border-vscode-border bg-vscode-input p-3 text-left hover:bg-vscode-hover hover:border-vscode-accent focus-visible:ring-1 focus-visible:ring-vscode-accent transition-colors"
+              >
+                <FolderPlus className="h-5 w-5 text-vscode-accent flex-shrink-0" />
+                <div className="flex flex-col">
+                  <span className="text-xs font-medium text-vscode-fg">Initialize Repository</span>
+                  <span className="text-[11px] text-vscode-muted">
+                    Run git init in a folder
+                  </span>
+                </div>
+              </button>
             </div>
           </div>
 
@@ -139,7 +112,7 @@ export const WelcomeView: React.FC = () => {
                     <button
                       key={rPath || rName}
                       type="button"
-                      onClick={() => handleOpenRecent(rPath)}
+                      onClick={() => void openRepository(rPath)}
                       className="flex flex-col rounded border border-vscode-border bg-vscode-input p-2 text-left hover:bg-vscode-hover hover:border-vscode-accent transition-colors"
                     >
                       <span className="text-xs font-medium text-vscode-fg">{rName}</span>
@@ -182,6 +155,18 @@ export const WelcomeView: React.FC = () => {
           </div>
         </div>
       </div>
+      <PromptDialog
+        isOpen={isCloneOpen}
+        title="Clone Repository"
+        label="Repository URL"
+        placeholder="https://github.com/owner/repo.git"
+        confirmLabel="Clone"
+        onConfirm={(url) => {
+          setIsCloneOpen(false);
+          if (url.trim()) void cloneRepository(url.trim());
+        }}
+        onCancel={() => setIsCloneOpen(false)}
+      />
     </div>
   );
 };

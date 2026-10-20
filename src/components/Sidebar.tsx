@@ -2,6 +2,7 @@ import React, { useRef, useState, useCallback, useEffect } from "react";
 import { Settings, RefreshCw, FolderOpen } from "lucide-react";
 import { useUIStore } from "@/stores/ui";
 import { useRepoStore } from "@/stores/repo";
+import { pickAndOpenRepository } from "@/stores/openRepository";
 import { commands, Settings as AppSettings } from "@/bindings";
 import { SourceControlView } from "@/views/SourceControl/SourceControlView";
 import { BranchesView } from "@/views/Branches/BranchesView";
@@ -9,7 +10,7 @@ import { StashesView } from "@/views/Stashes/StashesView";
 
 export const Sidebar: React.FC = () => {
   const { activeActivity, isSidebarOpen, sidebarWidth, setSidebarWidth, openTab } = useUIStore();
-  const { repoRoot, setRepo, setLoading, setError } = useRepoStore();
+  const { repoRoot } = useRepoStore();
 
   const [isDragging, setIsDragging] = useState(false);
   const [settingsData, setSettingsData] = useState<AppSettings | null>(null);
@@ -60,24 +61,7 @@ export const Sidebar: React.FC = () => {
     }
   }, [activeActivity]);
 
-  const handleOpenFolder = async () => {
-    try {
-      setLoading(true);
-      const picked = await commands.pickFolder();
-      if (picked.status === "ok" && picked.data) {
-        const opened = await commands.openRepo(picked.data);
-        if (opened.status === "ok") {
-          setRepo(opened.data);
-        } else {
-          setError(opened.error.message);
-        }
-      }
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to open folder");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handleOpenFolder = () => pickAndOpenRepository();
 
   if (!isSidebarOpen) {
     return null;

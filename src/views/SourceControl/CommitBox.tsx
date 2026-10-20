@@ -30,6 +30,7 @@ export const CommitBox: React.FC = () => {
     setSmartCommitSetting,
     push,
     sync,
+    setError,
   } = useScmStore();
 
   const [message, setMessage] = useState(draftCommitMessage);
@@ -158,6 +159,13 @@ export const CommitBox: React.FC = () => {
         if (!isMountedRef.current) return;
         setMessage(chunk);
         setDraftCommitMessage(chunk);
+      });
+    } catch (err) {
+      setError({
+        kind: "AiProvider",
+        message: err instanceof Error ? err.message : String(err),
+        git_stderr: null,
+        hint: null,
       });
     } finally {
       if (isMountedRef.current) {

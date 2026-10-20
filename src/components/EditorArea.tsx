@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { X, Sparkles } from "lucide-react";
 import { useUIStore, TabItem } from "@/stores/ui";
 import { WelcomeView } from "@/components/WelcomeView";
@@ -14,7 +14,8 @@ import { useRepoStore } from "@/stores/repo";
 import { SettingsView } from "@/views/Settings/SettingsView";
 import { defaultSettingsDataSource } from "@/settings";
 import { GitTimingsView } from "@/views/Debug/GitTimingsView";
-import { commands } from "@/bindings";
+import { executeGraphAction, needsPrompt } from "@/graph/graphActions";
+import { PromptDialog } from "@/components/PromptDialog";
 
 export const EditorArea: React.FC = () => {
   const { tabs, activeTabId, setActiveTabId, closeTab } = useUIStore();
@@ -22,6 +23,8 @@ export const EditorArea: React.FC = () => {
   const { activeDiff } = useScmStore();
 
   const { openTab } = useUIStore();
+
+  const [pendingPrompt, setPendingPrompt] = useState<GraphAction | null>(null);
 
   const handleGraphAction = (action: GraphAction) => {
     if (action.type === "rebase-interactive") {
@@ -32,11 +35,21 @@ export const EditorArea: React.FC = () => {
         closable: true,
         baseSha: sha,
       });
-    } else if (action.type === "cherry-pick") {
-      const sha = typeof action.payload?.sha === "string" ? action.payload.sha : undefined;
-      if (sha) {
-        void commands.cherryPick(sha);
-      }
+    } else if (needsPrompt(action.type)) {
+      setPendingPrompt(action);
+    } else {
+      void executeGraphAction(action);
+    }
+  };
+
+  const promptTitle = (action: GraphAction): string => {
+    switch (action.type) {
+      case "create-branch":
+        return "Create Branch";
+      case "create-tag":
+        return "Create Tag";
+      default:
+        return "Rename Branch";
     }
   };
 
@@ -167,6 +180,26 @@ export const EditorArea: React.FC = () => {
       >
         {currentTab && renderTabContent(currentTab)}
       </div>
+
+      {pendingPrompt && (
+        <PromptDialog
+          isOpen={true}
+          title={promptTitle(pendingPrompt)}
+          label={pendingPrompt.type === "create-tag" ? "Tag name" : "Branch name"}
+          initialValue={
+            pendingPrompt.type === "rename-ref" && typeof pendingPrompt.payload?.name === "string"
+              ? pendingPrompt.payload.name
+              : ""
+          }
+          onConfirm={(value) => {
+            const action = pendingPrompt;
+            setPendingPrompt(null);
+            const trimmed = value.trim();
+            if (trimmed) void executeGraphAction(action, trimmed);
+          }}
+          onCancel={() => setPendingPrompt(null)}
+        />
+      )}
     </main>
   );
 };

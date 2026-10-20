@@ -166,6 +166,8 @@ export interface JobProgress {
   percent?: number;
   message?: string;
   cancelable?: boolean;
+  /** Set when the job finished unsuccessfully. */
+  error?: string;
 }
 
 export type ErrorKind =

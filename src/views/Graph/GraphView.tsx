@@ -32,6 +32,7 @@ import {
 import { ConfirmDialog } from "@/components/graph/ConfirmDialog";
 import { OperationBanner } from "@/components/OperationBanner";
 import { useUIStore } from "@/stores/ui";
+import { useRepoStore } from "@/stores/repo";
 import { Sparkles } from "lucide-react";
 
 interface GraphViewProps {
@@ -211,9 +212,11 @@ export const GraphView: React.FC<GraphViewProps> = ({
     }
   }, [activeDataSource, filter]);
 
+  // Reload when another repository is opened.
+  const repoRoot = useRepoStore((s) => s.repoRoot);
   useEffect(() => {
     loadInitialPage();
-  }, [loadInitialPage]);
+  }, [loadInitialPage, repoRoot]);
 
   // After the refreshed page lands, restore scroll to the anchor SHA if still present
   useEffect(() => {
@@ -435,6 +438,20 @@ export const GraphView: React.FC<GraphViewProps> = ({
 
   // Action dispatcher
   const handleAction = (action: GraphAction) => {
+    if (action.type === "compare-with-head") {
+      const name = action.payload?.name;
+      const commitA = commits.find((c) => c.refs.some((r) => r.name === name));
+      const commitB = commits.find((c) => c.refs.some((r) => r.kind === "Head")) ?? commits[0];
+      if (commitA && commitB) {
+        setCompareCommits({ a: commitA, b: commitB });
+        setCompareLoading(true);
+        activeDataSource
+          .compare(commitA.sha, commitB.sha)
+          .then(setCompareChanges)
+          .finally(() => setCompareLoading(false));
+      }
+      return;
+    }
     if (action.danger) {
       setPendingDangerousAction(action);
       return;

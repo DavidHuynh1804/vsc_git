@@ -17,6 +17,7 @@ import {
 import { commands, events, AppFileRev, AppError as BindingsAppError } from "@/bindings";
 import { reportAppError } from "@/utils/errors";
 import { isMock } from "@/env";
+import { defaultAiDataSource } from "@/integrations/ai";
 import { applySelectedLines } from "./diffUtils";
 
 export interface ScmDataSource {
@@ -636,11 +637,13 @@ app.listen(port, () => {
  * TauriScmDataSource: wraps Tauri invoke commands according to Spec 11.
  */
 export class TauriScmDataSource implements ScmDataSource {
-  private mockFallback = new MockScmDataSource();
   private listeners: Set<() => void> = new Set();
   private debounceTimer: number | null = null;
   private unlistenStatusPromise: Promise<() => void> | null = null;
   private unlistenRefsPromise: Promise<() => void> | null = null;
+  // Jobs can finish before a caller subscribes, so remember recent completions.
+  private finishedJobs = new Map<string, { success: boolean; error: string | null }>();
+  private unlistenJobDonePromise: Promise<() => void> | null = null;
 
   constructor() {
     this.setupWatcher();
@@ -663,6 +666,14 @@ export class TauriScmDataSource implements ScmDataSource {
       notifyDebounced();
     });
 
+    this.unlistenJobDonePromise = events.jobDone.listen((e) => {
+      this.finishedJobs.set(e.payload.id, { success: e.payload.success, error: e.payload.error });
+      if (this.finishedJobs.size > 100) {
+        const oldest = this.finishedJobs.keys().next().value;
+        if (oldest !== undefined) this.finishedJobs.delete(oldest);
+      }
+    });
+
     if (typeof window !== "undefined") {
       window.addEventListener("focus", () => {
         this.notifyListeners();
@@ -674,6 +685,7 @@ export class TauriScmDataSource implements ScmDataSource {
     clearTimeout(this.debounceTimer ?? undefined);
     this.unlistenStatusPromise?.then((u) => u());
     this.unlistenRefsPromise?.then((u) => u());
+    this.unlistenJobDonePromise?.then((u) => u());
     this.listeners.clear();
   }
   private handleError(error: BindingsAppError): never {
@@ -1036,10 +1048,22 @@ export class TauriScmDataSource implements ScmDataSource {
   }
 
   async push(opts?: { remote?: string; branch?: string; forceWithLease?: boolean }): Promise<JobId> {
+    let remote = opts?.remote ?? null;
+    let branch = opts?.branch ?? null;
+    let setUpstream = false;
+    if (!branch) {
+      // A branch without an upstream must be published with `push -u <remote> <branch>`.
+      const { branch: info } = await this.getStatus();
+      if (info.head && !info.upstream) {
+        remote = remote ?? "origin";
+        branch = info.head;
+        setUpstream = true;
+      }
+    }
     const res = await commands.push({
-      remote: opts?.remote ?? null,
-      branch: opts?.branch ?? null,
-      set_upstream: false,
+      remote,
+      branch,
+      set_upstream: setUpstream,
       force_with_lease: opts?.forceWithLease ?? false,
       tags: false,
     });
@@ -1059,6 +1083,19 @@ export class TauriScmDataSource implements ScmDataSource {
 
   subscribeJobProgress(jobId: JobId, callback: (progress: JobProgress) => void): () => void {
     let active = true;
+    const emitDone = (done: { success: boolean; error: string | null }) => {
+      if (!active) return;
+      active = false;
+      callback({
+        jobId,
+        title: done.error ?? "Done",
+        percent: 100,
+        message: done.error ?? "Done",
+        error: done.success ? undefined : done.error ?? "Operation failed",
+      });
+      unlistenProgressPromise.then((u) => u());
+      unlistenDonePromise.then((u) => u());
+    };
     const unlistenProgressPromise = events.jobProgress.listen((e) => {
       if (active && e.payload.id === jobId) {
         callback({
@@ -1070,15 +1107,20 @@ export class TauriScmDataSource implements ScmDataSource {
       }
     });
     const unlistenDonePromise = events.jobDone.listen((e) => {
-      if (active && e.payload.id === jobId) {
-        callback({
-          jobId,
-          title: e.payload.error ?? "Done",
-          percent: 100,
-          message: e.payload.error ?? "Done",
-        });
+      if (e.payload.id === jobId) {
+        emitDone({ success: e.payload.success, error: e.payload.error });
       }
     });
+    const alreadyDone = this.finishedJobs.get(jobId);
+    if (alreadyDone) {
+      emitDone(alreadyDone);
+    } else {
+      // Close the gap between the job starting and our listener being registered.
+      void unlistenDonePromise.then(() => {
+        const done = this.finishedJobs.get(jobId);
+        if (done) emitDone(done);
+      });
+    }
     return () => {
       active = false;
       unlistenProgressPromise.then((u) => u());
@@ -1094,7 +1136,12 @@ export class TauriScmDataSource implements ScmDataSource {
   }
 
   async aiGenerateCommit(onChunk?: (chunk: string) => void): Promise<string> {
-    return this.mockFallback.aiGenerateCommit(onChunk);
+    // Backend streams deltas; callers expect the accumulated message so far.
+    let accumulated = "";
+    return defaultAiDataSource.generateCommit((chunk) => {
+      accumulated += chunk;
+      onChunk?.(accumulated);
+    });
   }
 
   async openInEditor(path: string, line?: number): Promise<void> {
