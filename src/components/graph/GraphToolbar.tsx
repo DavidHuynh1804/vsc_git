@@ -5,11 +5,18 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
-  GitBranch,
-  Clock,
-  Compass,
-  Columns2,
+  Crosshair,
+  Settings2,
+  CloudDownload,
+  X,
+  Check,
 } from "lucide-react";
+
+/**
+ * Toolbar laid out like the VS Code "Git Graph" extension: a centered
+ * "Branches: [Show All]" picker and "Show Remote Branches" checkbox, with
+ * find / go to HEAD / settings / fetch / refresh icon buttons on the right.
+ */
 
 interface GraphToolbarProps {
   searchQuery: string;
@@ -25,10 +32,27 @@ interface GraphToolbarProps {
   onDateFormatToggle: () => void;
   onGoToHead: () => void;
   onRefresh: () => void;
+  onFetch?: () => void;
   isRefreshing?: boolean;
   columns: ColumnDefinition[];
   onToggleColumn: (id: string) => void;
 }
+
+function useOutsideClose(open: boolean, close: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) close();
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [open, close]);
+  return ref;
+}
+
+const iconButton =
+  "flex h-6 w-6 items-center justify-center rounded text-vscode-muted hover:text-vscode-fg hover:bg-vscode-hover";
 
 export const GraphToolbar: React.FC<GraphToolbarProps> = ({
   searchQuery,
@@ -39,328 +63,250 @@ export const GraphToolbar: React.FC<GraphToolbarProps> = ({
   matchCount,
   filter,
   onFilterChange,
-  availableBranches = ["main", "feat/m1-backend", "feat/search"],
+  availableBranches = [],
   dateFormat,
   onDateFormatToggle,
   onGoToHead,
   onRefresh,
+  onFetch,
   isRefreshing = false,
   columns,
   onToggleColumn,
 }) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [isFindOpen, setIsFindOpen] = useState(false);
   const [isBranchMenuOpen, setIsBranchMenuOpen] = useState(false);
-  const branchMenuRef = useRef<HTMLDivElement>(null);
-  const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false);
-  const columnsMenuRef = useRef<HTMLDivElement>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const branchMenuRef = useOutsideClose(isBranchMenuOpen, () => setIsBranchMenuOpen(false));
+  const settingsRef = useOutsideClose(isSettingsOpen, () => setIsSettingsOpen(false));
 
-  // Global '/' shortcut to focus search
+  const openFind = () => {
+    setIsFindOpen(true);
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    }, 0);
+  };
+
+  const closeFind = () => {
+    setIsFindOpen(false);
+    onSearchChange("");
+  };
+
+  // '/' or Cmd/Ctrl+F opens the find widget
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept if already inside an input or textarea
       const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
-        if (target === searchInputRef.current && e.key === "Escape") {
-          searchInputRef.current.blur();
-        }
-        return;
-      }
-
-      if (e.key === "/" && !e.metaKey && !e.ctrlKey) {
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      const isFind = (e.key === "/" && !e.metaKey && !e.ctrlKey) || ((e.metaKey || e.ctrlKey) && e.key === "f");
+      if (isFind) {
         e.preventDefault();
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
+        openFind();
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Close branch dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (branchMenuRef.current && !branchMenuRef.current.contains(e.target as Node)) {
-        setIsBranchMenuOpen(false);
-      }
-      if (columnsMenuRef.current && !columnsMenuRef.current.contains(e.target as Node)) {
-        setIsColumnsMenuOpen(false);
-      }
-    };
-    if (isBranchMenuOpen || isColumnsMenuOpen) {
-      window.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => window.removeEventListener("mousedown", handleClickOutside);
-  }, [isBranchMenuOpen, isColumnsMenuOpen]);
-
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      if (e.shiftKey) {
-        onPrevMatch();
-      } else {
-        onNextMatch();
-      }
+      if (e.shiftKey) onPrevMatch();
+      else onNextMatch();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      closeFind();
     }
   };
+
+  const selected = typeof filter.refs === "object" && "Selected" in filter.refs ? filter.refs.Selected : null;
+  const branchLabel = !selected
+    ? "Show All"
+    : selected.length === 1
+      ? selected[0]
+      : `${selected.length} branches`;
 
   const toggleBranchSelection = (branchName: string) => {
-    let currentSelected: string[] = [];
-    if (typeof filter.refs === "object" && "Selected" in filter.refs) {
-      currentSelected = [...filter.refs.Selected];
-    } else {
-      currentSelected = [...availableBranches];
-    }
-
-    const idx = currentSelected.indexOf(branchName);
-    if (idx !== -1) {
-      currentSelected.splice(idx, 1);
-    } else {
-      currentSelected.push(branchName);
-    }
-
-    onFilterChange({
-      ...filter,
-      refs:
-        currentSelected.length === availableBranches.length
-          ? "All"
-          : { Selected: currentSelected },
-    });
+    const current = selected ? [...selected] : [];
+    const idx = current.indexOf(branchName);
+    if (idx !== -1) current.splice(idx, 1);
+    else current.push(branchName);
+    onFilterChange({ ...filter, refs: current.length === 0 ? "All" : { Selected: current } });
   };
 
-  const isBranchSelected = (name: string): boolean => {
-    if (filter.refs === "All") return true;
-    if (typeof filter.refs === "object" && "Selected" in filter.refs) {
-      return filter.refs.Selected.includes(name);
-    }
-    return true;
-  };
+  const toggle = (key: "include_remotes" | "include_tags" | "include_stash" | "first_parent_only") =>
+    onFilterChange({ ...filter, [key]: !filter[key] });
 
   return (
-    <div className="flex h-10 w-full items-center justify-between border-b border-vscode-border bg-vscode-activity px-3 text-xs select-none">
-      {/* Left controls: Search & Matches */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex items-center">
-          <Search className="absolute left-2 h-3.5 w-3.5 text-vscode-muted pointer-events-none" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            placeholder="Search commits, authors, shas... (Press '/')"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            onKeyDown={handleSearchKeyDown}
-            className="h-7 w-64 rounded bg-vscode-input pl-7 pr-16 text-xs text-vscode-fg placeholder:text-vscode-muted border border-vscode-border outline-none focus:border-vscode-accent"
-          />
+    <div className="relative flex h-9 w-full items-center border-b border-vscode-border bg-vscode-bg px-3 text-xs select-none">
+      <div className="flex flex-1 items-center justify-center gap-5">
+        {/* Branches picker */}
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-vscode-fg">Branches:</span>
+          <div className="relative" ref={branchMenuRef}>
+            <button
+              type="button"
+              aria-label="Branches"
+              aria-haspopup="listbox"
+              aria-expanded={isBranchMenuOpen}
+              onClick={() => setIsBranchMenuOpen(!isBranchMenuOpen)}
+              className="flex h-6 w-64 items-center justify-between rounded border border-vscode-border bg-vscode-input px-2 text-xs text-vscode-fg hover:border-vscode-accent"
+            >
+              <span className="truncate">{branchLabel}</span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-vscode-muted" />
+            </button>
 
-          {searchQuery && (
-            <div className="absolute right-1 flex items-center gap-0.5 text-[10px] text-vscode-muted">
-              <span>
-                {matchCount > 0 ? `${matchIndex + 1}/${matchCount}` : "0/0"}
-              </span>
-              <button
-                type="button"
-                onClick={onPrevMatch}
-                title="Previous match (Shift+Enter)"
-                className="rounded p-0.5 hover:bg-vscode-hover hover:text-vscode-fg"
+            {isBranchMenuOpen && (
+              <div
+                role="listbox"
+                aria-label="Branch filter"
+                aria-multiselectable="true"
+                className="absolute left-0 top-7 z-50 flex w-64 flex-col rounded border border-vscode-border bg-vscode-sidebar py-1 shadow-xl max-h-80 overflow-y-auto"
               >
-                <ChevronUp className="h-3 w-3" />
-              </button>
-              <button
-                type="button"
-                onClick={onNextMatch}
-                title="Next match (Enter)"
-                className="rounded p-0.5 hover:bg-vscode-hover hover:text-vscode-fg"
-              >
-                <ChevronDown className="h-3 w-3" />
-              </button>
-            </div>
-          )}
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={!selected}
+                  onClick={() => onFilterChange({ ...filter, refs: "All" })}
+                  className="flex items-center gap-2 px-2 py-1 text-left text-xs hover:bg-vscode-hover"
+                >
+                  <Check className={`h-3.5 w-3.5 ${selected ? "invisible" : "text-vscode-accent"}`} />
+                  <span>Show All</span>
+                </button>
+                {availableBranches.map((b) => {
+                  const isOn = !!selected?.includes(b);
+                  return (
+                    <button
+                      key={b}
+                      type="button"
+                      role="option"
+                      aria-selected={isOn}
+                      onClick={() => toggleBranchSelection(b)}
+                      className="flex items-center gap-2 px-2 py-1 text-left text-xs hover:bg-vscode-hover"
+                    >
+                      <Check className={`h-3.5 w-3.5 shrink-0 ${isOn ? "text-vscode-accent" : "invisible"}`} />
+                      <span className="truncate">{b}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Go to HEAD button */}
-        <button
-          type="button"
-          onClick={onGoToHead}
-          title="Jump to HEAD commit"
-          className="flex h-7 items-center gap-1.5 rounded border border-vscode-border bg-vscode-input px-2 text-xs text-vscode-fg hover:bg-vscode-hover hover:border-vscode-accent"
-        >
-          <Compass className="h-3.5 w-3.5 text-vscode-accent" />
-          <span>Go to HEAD</span>
-        </button>
+        <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-vscode-fg">
+          <input
+            type="checkbox"
+            checked={filter.include_remotes}
+            onChange={() => toggle("include_remotes")}
+            className="accent-vscode-accent"
+          />
+          <span>Show Remote Branches</span>
+        </label>
       </div>
 
-      {/* Right controls: Filters, Date toggle, Refresh */}
-      <div className="flex items-center gap-2">
-        {/* Branch Multi-select Dropdown */}
-        <div className="relative" ref={branchMenuRef}>
-          <button
-            type="button"
-            onClick={() => setIsBranchMenuOpen(!isBranchMenuOpen)}
-            className="flex h-7 items-center gap-1.5 rounded border border-vscode-border bg-vscode-input px-2 text-xs text-vscode-fg hover:bg-vscode-hover"
-          >
-            <GitBranch className="h-3.5 w-3.5 text-vscode-accent" />
-            <span>Branches</span>
-            <ChevronDown className="h-3 w-3 text-vscode-muted" />
-          </button>
-
-          {isBranchMenuOpen && (
-            <div className="absolute right-0 top-8 z-50 flex w-52 flex-col rounded border border-vscode-border bg-vscode-sidebar p-2 shadow-xl">
-              <span className="mb-1 text-[10px] font-semibold uppercase text-vscode-muted">
-                Filter Branches
-              </span>
-              <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
-                {availableBranches.map((b) => (
-                  <label
-                    key={b}
-                    className="flex items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-vscode-hover cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isBranchSelected(b)}
-                      onChange={() => toggleBranchSelection(b)}
-                      className="rounded accent-vscode-accent"
-                    />
-                    <span className="truncate text-vscode-fg">{b}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Quick Filter Toggles */}
-        <div className="flex items-center rounded border border-vscode-border bg-vscode-input p-0.5">
-          <button
-            type="button"
-            title="Toggle remote branches"
-            onClick={() =>
-              onFilterChange({
-                ...filter,
-                include_remotes: !filter.include_remotes,
-              })
-            }
-            className={`rounded px-2 py-0.5 text-[11px] ${
-              filter.include_remotes
-                ? "bg-vscode-accent text-white font-medium"
-                : "text-vscode-muted hover:text-vscode-fg"
-            }`}
-          >
-            Remote
-          </button>
-
-          <button
-            type="button"
-            title="Toggle tags"
-            onClick={() =>
-              onFilterChange({
-                ...filter,
-                include_tags: !filter.include_tags,
-              })
-            }
-            className={`rounded px-2 py-0.5 text-[11px] ${
-              filter.include_tags
-                ? "bg-vscode-accent text-white font-medium"
-                : "text-vscode-muted hover:text-vscode-fg"
-            }`}
-          >
-            Tags
-          </button>
-
-          <button
-            type="button"
-            title="Toggle stashes"
-            onClick={() =>
-              onFilterChange({
-                ...filter,
-                include_stash: !filter.include_stash,
-              })
-            }
-            className={`rounded px-2 py-0.5 text-[11px] ${
-              filter.include_stash
-                ? "bg-vscode-accent text-white font-medium"
-                : "text-vscode-muted hover:text-vscode-fg"
-            }`}
-          >
-            Stash
-          </button>
-
-          <button
-            type="button"
-            title="Only follow the first parent commit"
-            onClick={() =>
-              onFilterChange({
-                ...filter,
-                first_parent_only: !filter.first_parent_only,
-              })
-            }
-            className={`rounded px-2 py-0.5 text-[11px] ${
-              filter.first_parent_only
-                ? "bg-vscode-accent text-white font-medium"
-                : "text-vscode-muted hover:text-vscode-fg"
-            }`}
-          >
-            1st Parent
-          </button>
-        </div>
-
-        {/* Date format toggle */}
-        <button
-          type="button"
-          onClick={onDateFormatToggle}
-          title={`Date display: ${dateFormat} (click to toggle)`}
-          className="flex h-7 items-center gap-1 rounded border border-vscode-border bg-vscode-input px-2 text-xs text-vscode-fg hover:bg-vscode-hover"
-        >
-          <Clock className="h-3.5 w-3.5 text-vscode-muted" />
-          <span className="capitalize">{dateFormat}</span>
+      {/* Right icon buttons */}
+      <div className="absolute right-2 flex items-center gap-0.5">
+        <button type="button" onClick={openFind} title="Find" aria-label="Find" className={iconButton}>
+          <Search className="h-3.5 w-3.5" />
         </button>
-
-        {/* Column visibility dropdown */}
-        <div className="relative" ref={columnsMenuRef}>
+        <button type="button" onClick={onGoToHead} title="Go to HEAD" aria-label="Go to HEAD" className={iconButton}>
+          <Crosshair className="h-3.5 w-3.5" />
+        </button>
+        <div className="relative" ref={settingsRef}>
           <button
             type="button"
-            onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
-            title="Toggle columns"
-            className="flex h-7 w-7 items-center justify-center rounded border border-vscode-border bg-vscode-input text-vscode-muted hover:text-vscode-fg hover:bg-vscode-hover"
+            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+            title="Graph Settings"
+            aria-label="Graph Settings"
+            aria-expanded={isSettingsOpen}
+            className={iconButton}
           >
-            <Columns2 className="h-3.5 w-3.5" />
+            <Settings2 className="h-3.5 w-3.5" />
           </button>
-
-          {isColumnsMenuOpen && (
-            <div className="absolute right-0 top-8 z-50 flex w-44 flex-col rounded border border-vscode-border bg-vscode-sidebar p-2 shadow-xl">
-              <span className="mb-1 text-[10px] font-semibold uppercase text-vscode-muted">
-                Show Columns
-              </span>
-              <div className="flex flex-col gap-1">
-                {columns.map((col) => (
-                  <label
-                    key={col.id}
-                    className="flex items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-vscode-hover cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={col.visible}
-                      disabled={col.id === "graph"}
-                      onChange={() => onToggleColumn(col.id)}
-                      className="rounded accent-vscode-accent"
-                    />
-                    <span className="truncate text-vscode-fg">{col.label}</span>
-                  </label>
-                ))}
-              </div>
+          {isSettingsOpen && (
+            <div className="absolute right-0 top-7 z-50 flex w-52 flex-col gap-0.5 rounded border border-vscode-border bg-vscode-sidebar p-2 shadow-xl">
+              <span className="mb-1 text-[10px] font-semibold uppercase text-vscode-muted">Show</span>
+              {(
+                [
+                  ["include_tags", "Tags"],
+                  ["include_stash", "Stashes"],
+                  ["first_parent_only", "First parent only"],
+                ] as const
+              ).map(([key, label]) => (
+                <label key={key} className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-vscode-hover cursor-pointer">
+                  <input type="checkbox" checked={filter[key]} onChange={() => toggle(key)} className="accent-vscode-accent" />
+                  <span>{label}</span>
+                </label>
+              ))}
+              <label className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-vscode-hover cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={dateFormat === "relative"}
+                  onChange={onDateFormatToggle}
+                  className="accent-vscode-accent"
+                />
+                <span>Relative dates</span>
+              </label>
+              <span className="mt-2 mb-1 text-[10px] font-semibold uppercase text-vscode-muted">Columns</span>
+              {columns.map((col) => (
+                <label key={col.id} className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-vscode-hover cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={col.visible}
+                    disabled={col.id === "graph" || col.id === "message"}
+                    onChange={() => onToggleColumn(col.id)}
+                    className="accent-vscode-accent"
+                  />
+                  <span>{col.label}</span>
+                </label>
+              ))}
             </div>
           )}
         </div>
-
-        {/* Refresh button */}
-        <button
-          type="button"
-          onClick={onRefresh}
-          title="Refresh Git Graph"
-          className="flex h-7 w-7 items-center justify-center rounded border border-vscode-border bg-vscode-input text-vscode-muted hover:text-vscode-fg hover:bg-vscode-hover"
-        >
+        {onFetch && (
+          <button
+            type="button"
+            onClick={onFetch}
+            title="Fetch from Remote(s)"
+            aria-label="Fetch from Remote(s)"
+            className={iconButton}
+          >
+            <CloudDownload className="h-3.5 w-3.5" />
+          </button>
+        )}
+        <button type="button" onClick={onRefresh} title="Refresh Git Graph" aria-label="Refresh Git Graph" className={iconButton}>
           <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-vscode-accent" : ""}`} />
         </button>
       </div>
+
+      {/* Find widget (like the editor find box) */}
+      {isFindOpen && (
+        <div className="absolute right-2 top-10 z-40 flex items-center gap-1 rounded border border-vscode-border bg-vscode-sidebar p-1 shadow-xl">
+          <input
+            ref={searchInputRef}
+            type="text"
+            aria-label="Find commits"
+            placeholder="Search commits, authors, shas..."
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
+            className="h-6 w-60 rounded bg-vscode-input px-2 text-xs text-vscode-fg placeholder:text-vscode-muted border border-vscode-border outline-none focus:border-vscode-accent"
+          />
+          <span className="w-12 text-center text-[11px] text-vscode-muted tabular-nums">
+            {searchQuery ? (matchCount > 0 ? `${matchIndex + 1}/${matchCount}` : "No results") : ""}
+          </span>
+          <button type="button" onClick={onPrevMatch} title="Previous match (Shift+Enter)" className={iconButton}>
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={onNextMatch} title="Next match (Enter)" className={iconButton}>
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={closeFind} title="Close (Escape)" className={iconButton}>
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

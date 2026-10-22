@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { StrictMode } from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { GraphView } from "./GraphView";
-import { MockGraphDataSource } from "@/graph/dataSource";
+import { MockGraphDataSource, type GraphDataSource } from "@/graph/dataSource";
+import type { CommitSummary } from "@/graph/types";
 
 describe("GraphView component", () => {
   beforeEach(() => {
@@ -42,7 +44,7 @@ describe("GraphView component", () => {
       ).toBeGreaterThan(0);
     });
     // Uncommitted changes row should be present
-    expect(screen.getByText("Uncommitted changes")).toBeInTheDocument();
+    expect(screen.getByText(/^Uncommitted Changes \(\d+\)$/)).toBeInTheDocument();
 
     // Check refs badge
     expect(screen.getByText("HEAD")).toBeInTheDocument();
@@ -105,6 +107,7 @@ describe("GraphView component", () => {
 
     await screen.findAllByText("feat(graph-ui): virtualized canvas Git Graph view");
 
+    fireEvent.click(screen.getByRole("button", { name: "Find" }));
     const searchInput = screen.getByPlaceholderText(/Search commits/i);
     fireEvent.change(searchInput, { target: { value: "virtualized" } });
 
@@ -292,5 +295,54 @@ describe("GraphView component", () => {
     console.info(
       `[Benchmark 200k commits] First page data: ${dataFetchTime.toFixed(2)}ms, Initial render: ${renderTime.toFixed(2)}ms, DOM row count: ${renderedRows.length}`
     );
+  });
+
+  it("shows the first page even when two loads overlap (StrictMode double mount)", async () => {
+    // Like the Tauri backend, one walker is shared by every caller, and each
+    // await yields so concurrent reset()/page() calls can interleave.
+    const commits: CommitSummary[] = Array.from({ length: 1200 }, (_, i) => ({
+      sha: `sha${String(i).padStart(4, "0")}`,
+      short_sha: `s${i}`,
+      parents: i < 1199 ? [`sha${String(i + 1).padStart(4, "0")}`] : [],
+      author_name: "Dev",
+      author_email: "d@x",
+      author_time: 2_000_000_000 - i,
+      committer_time: 2_000_000_000 - i,
+      subject: `commit number ${i}`,
+      refs: [],
+    }));
+    let offset = 0;
+    const tick = () => new Promise((r) => setTimeout(r, 5));
+    const ds: GraphDataSource = {
+      reset: async () => {
+        await tick();
+        offset = 0;
+      },
+      page: async (n) => {
+        await tick();
+        const slice = commits.slice(offset, offset + n);
+        offset += slice.length;
+        return {
+          commits: slice,
+          rows: slice.map((c) => ({ sha: c.sha, col: 0, color: 0, edges: [] })),
+          has_more: offset < commits.length,
+        };
+      },
+      detail: async () => {
+        throw new Error("unused");
+      },
+      compare: async () => [],
+    };
+
+    render(
+      <StrictMode>
+        <GraphView dataSource={ds} />
+      </StrictMode>
+    );
+
+    expect(await screen.findByText("commit number 0")).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.getByText("commit number 0")).toBeInTheDocument();
+    expect(screen.queryByText("commit number 500")).not.toBeInTheDocument();
   });
 });

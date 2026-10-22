@@ -325,6 +325,9 @@ export type AppRefInfo = {
 	ahead: number,
 	behind: number,
 	is_head: boolean,
+	date: number | null,
+	author: string | null,
+	subject: string | null,
 };
 
 export type AppRefKind = "LocalBranch" | "RemoteBranch" | "Tag" | "Head" | "Stash";

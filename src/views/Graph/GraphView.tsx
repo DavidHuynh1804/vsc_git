@@ -19,7 +19,7 @@ import type {
 import { type GraphDataSource, MockGraphDataSource, TauriGraphDataSource } from "@/graph/dataSource";
 import { isMock } from "@/env";
 import { events } from "@/bindings";
-import { ROW_HEIGHT } from "@/graph/geometry";
+import { ROW_HEIGHT, getLaneColor, graphWidthFor } from "@/graph/geometry";
 import { GraphCanvas } from "@/components/graph/GraphCanvas";
 import { RefsBadge } from "@/components/graph/RefsBadge";
 import { GraphToolbar } from "@/components/graph/GraphToolbar";
@@ -33,7 +33,7 @@ import { ConfirmDialog } from "@/components/graph/ConfirmDialog";
 import { OperationBanner } from "@/components/OperationBanner";
 import { useUIStore } from "@/stores/ui";
 import { useRepoStore } from "@/stores/repo";
-import { Sparkles } from "lucide-react";
+import { useScmStore } from "@/scm/scmStore";
 
 interface GraphViewProps {
   dataSource?: GraphDataSource;
@@ -41,16 +41,17 @@ interface GraphViewProps {
   onAction?: (action: GraphAction) => void;
 }
 
+// Laid out like the "Git Graph" extension. "message" (Description) takes the
+// remaining width; its `width` is only the minimum.
 const DEFAULT_COLUMNS: ColumnDefinition[] = [
   { id: "graph", label: "Graph", width: 140, minWidth: 80, visible: true },
-  { id: "refs", label: "Refs", width: 160, minWidth: 60, visible: true },
-  { id: "message", label: "Message", width: 380, minWidth: 140, visible: true },
-  { id: "author", label: "Author", width: 150, minWidth: 80, visible: true },
-  { id: "date", label: "Date", width: 110, minWidth: 70, visible: true },
-  { id: "sha", label: "SHA", width: 75, minWidth: 55, visible: true },
+  { id: "message", label: "Description", width: 300, minWidth: 140, visible: true },
+  { id: "date", label: "Date", width: 130, minWidth: 70, visible: true },
+  { id: "author", label: "Author", width: 130, minWidth: 80, visible: true },
+  { id: "sha", label: "Commit", width: 80, minWidth: 55, visible: true },
 ];
 
-const STORAGE_KEY = "vsc_git_graph_columns";
+const STORAGE_KEY = "vsc_git_graph_columns_v2";
 
 function loadSavedColumns(): ColumnDefinition[] {
   try {
@@ -86,11 +87,13 @@ function formatRelativeTime(seconds: number): string {
   return `${Math.floor(diff / 31536000)}y ago`;
 }
 
-function getInitials(name: string): string {
-  if (!name) return "?";
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "20 Oct 2026 14:41", the Git Graph extension's date format. */
+export function formatGraphDate(seconds: number): string {
+  const d = new Date(seconds * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function highlightText(text: string, query: string): React.ReactNode {
@@ -117,6 +120,10 @@ export const GraphView: React.FC<GraphViewProps> = ({
   onAction,
 }) => {
   const { setActiveActivity, openTab, selectedGraphSha, setSelectedGraphSha } = useUIStore();
+  const headBranch = useRepoStore((s) => s.headBranch);
+  const scmRefs = useScmStore((s) => s.refs);
+  const changeCount = useScmStore((s) => s.status?.entries.length ?? 0);
+  const fetchRemotes = useScmStore((s) => s.fetch);
 
   const [activeDataSource] = useState<GraphDataSource>(
     () => propDataSource ?? (isMock() ? new MockGraphDataSource(200000) : new TauriGraphDataSource())
@@ -149,7 +156,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [matchCursor, setMatchCursor] = useState(0);
-  const [dateFormat, setDateFormat] = useState<DateDisplayFormat>("relative");
+  const [dateFormat, setDateFormat] = useState<DateDisplayFormat>("absolute");
   const [filter, setFilter] = useState<GraphFilter>({
     refs: "All",
     include_remotes: true,
@@ -190,8 +197,21 @@ export const GraphView: React.FC<GraphViewProps> = ({
     isDirtyRef.current = isDirty;
   }, [isDirty]);
 
+  // The backend walker is shared state: reset() and page() of two loads must
+  // never interleave (reset A, reset B, page A, page B would hand B the
+  // *second* page). All loads run one at a time, and a load superseded by a
+  // newer reset discards its result.
+  const loadQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const loadGenerationRef = useRef(0);
+  const enqueueLoad = useCallback((task: () => Promise<void>): Promise<void> => {
+    const next = loadQueueRef.current.then(task, task);
+    loadQueueRef.current = next.catch(() => {});
+    return next;
+  }, []);
+
   // Load initial page of commits
   const loadInitialPage = useCallback(async () => {
+    const generation = ++loadGenerationRef.current;
     // Capture the topmost visible commit SHA so we can restore scroll after reset
     const allCommits = commitsRef.current;
     const topRowIndex = Math.floor(scrollTopRef.current / ROW_HEIGHT);
@@ -202,15 +222,19 @@ export const GraphView: React.FC<GraphViewProps> = ({
 
     setLoading(true);
     try {
-      await activeDataSource.reset(filter);
-      const page = await activeDataSource.page(500);
-      setCommits(page.commits);
-      setRows(page.rows);
-      setHasMore(page.has_more);
+      await enqueueLoad(async () => {
+        if (generation !== loadGenerationRef.current) return;
+        await activeDataSource.reset(filter);
+        const page = await activeDataSource.page(500);
+        if (generation !== loadGenerationRef.current) return;
+        setCommits(page.commits);
+        setRows(page.rows);
+        setHasMore(page.has_more);
+      });
     } finally {
-      setLoading(false);
+      if (generation === loadGenerationRef.current) setLoading(false);
     }
-  }, [activeDataSource, filter]);
+  }, [activeDataSource, filter, enqueueLoad]);
 
   // Reload when another repository is opened.
   const repoRoot = useRepoStore((s) => s.repoRoot);
@@ -233,16 +257,22 @@ export const GraphView: React.FC<GraphViewProps> = ({
   // Load next page on scroll near bottom
   const loadNextPage = useCallback(async () => {
     if (loadingMore || !hasMore) return;
+    const generation = loadGenerationRef.current;
     setLoadingMore(true);
     try {
-      const page = await activeDataSource.page(500);
-      setCommits((prev) => [...prev, ...page.commits]);
-      setRows((prev) => [...prev, ...page.rows]);
-      setHasMore(page.has_more);
+      await enqueueLoad(async () => {
+        // A reset since this was requested restarts the walk; this page is stale.
+        if (generation !== loadGenerationRef.current) return;
+        const page = await activeDataSource.page(500);
+        if (generation !== loadGenerationRef.current) return;
+        setCommits((prev) => [...prev, ...page.commits]);
+        setRows((prev) => [...prev, ...page.rows]);
+        setHasMore(page.has_more);
+      });
     } finally {
       setLoadingMore(false);
     }
-  }, [activeDataSource, hasMore, loadingMore]);
+  }, [activeDataSource, hasMore, loadingMore, enqueueLoad]);
 
   // Virtualizer setup
   const totalItemsCount = commits.length + (isDirty ? 1 : 0);
@@ -404,7 +434,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
     resizingColumnRef.current = {
       id: colId,
       startX: e.clientX,
-      startWidth: col.width,
+      startWidth: colWidth(col),
     };
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
@@ -417,6 +447,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
             return {
               ...c,
               width: Math.max(c.minWidth, startWidth + diff),
+              userResized: true,
             };
           }
           return c;
@@ -475,8 +506,13 @@ export const GraphView: React.FC<GraphViewProps> = ({
     }
   };
 
-  const graphColWidth =
-    columns.find((c) => c.id === "graph" && c.visible)?.width ?? 140;
+  const isLight = typeof document !== "undefined" && document.documentElement.classList.contains("light");
+  // Like Git Graph, the graph column grows to fit every lane unless the user
+  // has resized it by hand.
+  const graphCol = columns.find((c) => c.id === "graph");
+  const autoGraphWidth = Math.max(graphCol?.minWidth ?? 64, graphWidthFor(rows));
+  const graphColWidth = graphCol?.userResized ? graphCol.width : Math.min(autoGraphWidth, 600);
+  const colWidth = (col: ColumnDefinition) => (col.id === "graph" ? graphColWidth : col.width);
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-vscode-bg text-vscode-fg select-none">
@@ -496,8 +532,13 @@ export const GraphView: React.FC<GraphViewProps> = ({
         onDateFormatToggle={() =>
           setDateFormat((prev) => (prev === "relative" ? "absolute" : "relative"))
         }
+        availableBranches={[
+          ...(scmRefs?.branches ?? []).map((b) => b.name),
+          ...(filter.include_remotes ? (scmRefs?.remotes ?? []).map((b) => b.name).filter((n) => n.includes("/")) : []),
+        ]}
         onGoToHead={handleGoToHead}
         onRefresh={loadInitialPage}
+        onFetch={() => void fetchRemotes()}
         isRefreshing={loading}
         columns={columns}
         onToggleColumn={(id) => {
@@ -517,14 +558,16 @@ export const GraphView: React.FC<GraphViewProps> = ({
       {/* Main Table Area */}
       <div className="flex flex-1 flex-col overflow-hidden min-h-0 relative">
         {/* Table Header */}
-        <div className="flex h-7 w-full items-center border-b border-vscode-border bg-vscode-sidebar text-[11px] font-semibold text-vscode-muted select-none">
+        <div className="flex h-7 w-full items-center border-b border-vscode-border bg-vscode-bg text-xs font-semibold text-vscode-fg select-none">
           {columns
             .filter((c) => c.visible)
             .map((col) => (
               <div
                 key={col.id}
-                style={{ width: `${col.width}px` }}
-                className="relative flex h-full items-center px-2 flex-shrink-0 border-r border-vscode-border"
+                style={col.id === "message" ? { minWidth: `${col.width}px` } : { width: `${colWidth(col)}px` }}
+                className={`relative flex h-full items-center justify-center px-2 border-r border-vscode-border ${
+                  col.id === "message" ? "flex-1" : "flex-shrink-0"
+                }`}
               >
                 <span className="truncate">{col.label}</span>
                 <div
@@ -541,16 +584,20 @@ export const GraphView: React.FC<GraphViewProps> = ({
           onScroll={handleScroll}
           className="flex-1 overflow-auto relative min-h-0 bg-vscode-bg"
         >
-          {/* Canvas overlay over graph column */}
-          <GraphCanvas
-            rows={rows}
-            commits={commits}
-            virtualItems={virtualItems}
-            scrollTop={scrollTop}
-            width={graphColWidth}
-            height={parentRef.current?.clientHeight ?? 800}
-            hasDirtyRow={isDirty}
-          />
+          {/* Canvas overlay over graph column. It draws in viewport coordinates
+              (row.start - scrollTop), so it stays pinned to the top of the
+              viewport instead of scrolling away with the rows. */}
+          <div className="pointer-events-none z-10" style={{ position: "sticky", top: 0, height: 0 }}>
+            <GraphCanvas
+              rows={rows}
+              commits={commits}
+              virtualItems={virtualItems}
+              scrollTop={scrollTop}
+              width={graphColWidth}
+              height={parentRef.current?.clientHeight ?? 800}
+              hasDirtyRow={isDirty}
+            />
+          </div>
 
           {/* Virtualizer space container */}
           <div
@@ -577,14 +624,22 @@ export const GraphView: React.FC<GraphViewProps> = ({
                       height: `${ROW_HEIGHT}px`,
                       transform: `translateY(${virtualRow.start}px)`,
                     }}
-                    className="flex items-center text-xs text-vscode-muted hover:bg-vscode-hover hover:text-vscode-fg cursor-pointer border-b border-vscode-border/50"
+                    title="Click to view the working tree changes"
+                    className="flex items-center text-xs text-vscode-fg hover:bg-vscode-hover cursor-pointer"
                   >
-                    <div style={{ width: `${graphColWidth}px` }} className="flex-shrink-0" />
-                    <div className="flex items-center gap-2 px-2 text-warning font-medium">
-                      <Sparkles className="h-3.5 w-3.5" />
-                      <span>Uncommitted changes</span>
-                      <span className="text-[10px] text-vscode-muted">(click to view working tree)</span>
-                    </div>
+                    {columns
+                      .filter((c) => c.visible)
+                      .map((col) =>
+                        col.id === "message" ? (
+                          <div key={col.id} style={{ minWidth: `${col.width}px` }} className="flex-1 px-2 truncate font-semibold">
+                            Uncommitted Changes ({changeCount})
+                          </div>
+                        ) : (
+                          <div key={col.id} style={{ width: `${colWidth(col)}px` }} className="flex-shrink-0 px-2 truncate">
+                            {col.id === "date" ? formatGraphDate(Math.floor(Date.now() / 1000)) : col.id === "graph" ? null : "*"}
+                          </div>
+                        )
+                      )}
                   </div>
                 );
               }
@@ -597,6 +652,8 @@ export const GraphView: React.FC<GraphViewProps> = ({
               const isCompareA = compareCommits?.a.sha === commit.sha;
               const isCompareB = compareCommits?.b.sha === commit.sha;
               const isHighlighted = matchingIndices.includes(itemIndex);
+              const isMerge = commit.parents.length > 1;
+              const laneColor = getLaneColor(rows[commitIndex]?.color ?? 0, isLight);
 
               return (
                 <div
@@ -621,15 +678,15 @@ export const GraphView: React.FC<GraphViewProps> = ({
                     height: `${ROW_HEIGHT}px`,
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
-                  className={`flex items-center text-xs cursor-pointer border-b border-vscode-border/30 transition-colors ${
+                  className={`flex items-center text-xs cursor-pointer transition-colors ${
                     isCompareA || isCompareB
-                      ? "bg-purple-900/30 text-white font-medium"
+                      ? "bg-purple-900/30 text-vscode-fg"
                       : isSelected
-                        ? "bg-vscode-accent/25 text-white font-medium"
+                        ? "bg-vscode-accent/25 text-vscode-fg"
                         : isHighlighted
                           ? "bg-yellow-500/10 text-vscode-fg"
-                          : "text-vscode-fg hover:bg-vscode-hover"
-                  }`}
+                          : "hover:bg-vscode-hover"
+                  } ${isMerge && !isSelected ? "text-vscode-muted" : "text-vscode-fg"}`}
                 >
                   {columns
                     .filter((c) => c.visible)
@@ -638,21 +695,24 @@ export const GraphView: React.FC<GraphViewProps> = ({
                         return (
                           <div
                             key={col.id}
-                            style={{ width: `${col.width}px` }}
+                            style={{ width: `${colWidth(col)}px` }}
                             className="flex-shrink-0 h-full"
                           />
                         );
                       }
 
-                      if (col.id === "refs") {
+                      if (col.id === "message") {
                         return (
                           <div
                             key={col.id}
-                            style={{ width: `${col.width}px` }}
-                            className="flex-shrink-0 px-1 overflow-hidden"
+                            style={{ minWidth: `${col.width}px` }}
+                            className="flex-1 flex items-center gap-1.5 px-2 overflow-hidden"
+                            title={commit.subject}
                           >
                             <RefsBadge
                               refs={commit.refs}
+                              color={laneColor}
+                              headBranch={headBranch}
                               onContextMenu={(e, ref) => {
                                 setContextTarget({
                                   type: "ref",
@@ -662,19 +722,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
                                 });
                               }}
                             />
-                          </div>
-                        );
-                      }
-
-                      if (col.id === "message") {
-                        return (
-                          <div
-                            key={col.id}
-                            style={{ width: `${col.width}px` }}
-                            className="flex-shrink-0 px-2 truncate leading-tight"
-                            title={commit.subject}
-                          >
-                            {highlightText(commit.subject, searchQuery)}
+                            <span className="truncate">{highlightText(commit.subject, searchQuery)}</span>
                           </div>
                         );
                       }
@@ -683,16 +731,11 @@ export const GraphView: React.FC<GraphViewProps> = ({
                         return (
                           <div
                             key={col.id}
-                            style={{ width: `${col.width}px` }}
-                            className="flex-shrink-0 flex items-center gap-1.5 px-2 overflow-hidden"
+                            style={{ width: `${colWidth(col)}px` }}
+                            className="flex-shrink-0 px-2 truncate"
                             title={`${commit.author_name} <${commit.author_email}>`}
                           >
-                            <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-vscode-input text-[8px] font-bold text-vscode-accent">
-                              {getInitials(commit.author_name)}
-                            </div>
-                            <span className="truncate text-vscode-fg text-[11px]">
-                              {highlightText(commit.author_name, searchQuery)}
-                            </span>
+                            {highlightText(commit.author_name, searchQuery)}
                           </div>
                         );
                       }
@@ -701,13 +744,13 @@ export const GraphView: React.FC<GraphViewProps> = ({
                         const dateStr =
                           dateFormat === "relative"
                             ? formatRelativeTime(commit.author_time)
-                            : new Date(commit.author_time * 1000).toLocaleDateString();
+                            : formatGraphDate(commit.author_time);
 
                         return (
                           <div
                             key={col.id}
-                            style={{ width: `${col.width}px` }}
-                            className="flex-shrink-0 px-2 text-[11px] font-mono tabular-nums text-vscode-muted truncate"
+                            style={{ width: `${colWidth(col)}px` }}
+                            className="flex-shrink-0 px-2 tabular-nums truncate"
                             title={new Date(commit.author_time * 1000).toLocaleString()}
                           >
                             {dateStr}
@@ -719,10 +762,10 @@ export const GraphView: React.FC<GraphViewProps> = ({
                         return (
                           <div
                             key={col.id}
-                            style={{ width: `${col.width}px` }}
-                            className="flex-shrink-0 px-2 font-mono text-[11px] text-vscode-muted-high font-medium truncate"
+                            style={{ width: `${colWidth(col)}px` }}
+                            className="flex-shrink-0 px-2 font-mono truncate"
                           >
-                            {highlightText(commit.short_sha, searchQuery)}
+                            {highlightText(commit.sha.slice(0, 8), searchQuery)}
                           </div>
                         );
                       }

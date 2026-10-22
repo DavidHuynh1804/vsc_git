@@ -90,4 +90,6 @@ export interface ColumnDefinition {
   width: number;
   minWidth: number;
   visible: boolean;
+  /** Set once the user drags the column; the graph column otherwise auto-fits its lanes. */
+  userResized?: boolean;
 }

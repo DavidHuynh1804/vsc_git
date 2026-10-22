@@ -128,6 +128,10 @@ export interface RefItem {
   ahead?: number;
   behind?: number;
   targetOid?: string;
+  /** Unix seconds of the tip commit/tag. */
+  date?: number | null;
+  author?: string | null;
+  subject?: string | null;
 }
 
 export interface RefList {

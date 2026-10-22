@@ -453,6 +453,40 @@ html, body, #root {
 
 .relative { position: relative; }
 .absolute { position: absolute; }
+.sticky { position: sticky; }
+.text-white\/80 { color: rgba(255, 255, 255, 0.8); }
+.border-vscode-border\/60 { border-color: color-mix(in srgb, var(--vscode-border) 60%, transparent); }
+.bg-vscode-accent\/25 { background-color: color-mix(in srgb, var(--vscode-accent) 25%, transparent); }
+.bg-purple-900\/30 { background-color: rgba(88, 28, 135, 0.3); }
+.bg-yellow-500\/10 { background-color: rgba(234, 179, 8, 0.1); }
+.top-10 { top: 40px; }
+.top-full { top: 100%; }
+.z-40 { z-index: 40; }
+.pointer-events-none { pointer-events: none; }
+.w-52 { width: 208px; }
+.w-60 { width: 240px; }
+.max-w-full { max-width: 100%; }
+.h-\[18px\] { height: 18px; }
+.gap-5 { gap: 20px; }
+.items-stretch { align-items: stretch; }
+.mb-1 { margin-bottom: 4px; }
+.mt-1\.5 { margin-top: 6px; }
+.ml-2 { margin-left: 8px; }
+.pl-5 { padding-left: 20px; }
+.pt-1\.5 { padding-top: 6px; }
+.px-0\.5 { padding-left: 2px; padding-right: 2px; }
+.text-\[13px\] { font-size: 13px; }
+.leading-none { line-height: 1; }
+.rounded-\[3px\] { border-radius: 3px; }
+.accent-vscode-accent { accent-color: var(--vscode-accent); }
+.bg-black\/20 { background-color: rgba(0, 0, 0, 0.2); }
+.hover\:bg-black\/30:hover { background-color: rgba(0, 0, 0, 0.3); }
+.hover\:bg-white\/10:hover { background-color: rgba(255, 255, 255, 0.1); }
+.active\:bg-white\/20:active { background-color: rgba(255, 255, 255, 0.2); }
+.hover\:text-red-200:hover { color: #fecaca; }
+.bg-yellow-500\/30 { background-color: rgba(234, 179, 8, 0.3); }
+.text-yellow-200 { color: #fef08a; }
+.focus-visible\:ring-1:focus-visible { box-shadow: 0 0 0 1px var(--vscode-accent); }
 .fixed { position: fixed; }
 .inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
 .top-0 { top: 0; }

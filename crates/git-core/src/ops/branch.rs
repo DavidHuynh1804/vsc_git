@@ -23,6 +23,11 @@ pub struct RefInfo {
     pub behind: u32,
     pub is_head: bool,
     pub symref_target: Option<String>,
+    /// Unix seconds of the tip commit (or tag) creation.
+    pub date: Option<u32>,
+    /// Author of the tip commit, or tagger of an annotated tag.
+    pub author: Option<String>,
+    pub subject: Option<String>,
 }
 
 fn parse_track(track: &str) -> (u32, u32) {
@@ -41,7 +46,7 @@ fn parse_track(track: &str) -> (u32, u32) {
 
 /// List refs (local branches, remote branches, tags) using `git for-each-ref --format` with `%00` separator.
 pub fn list_refs(cli: &GitCli, repo_path: &Path) -> Result<Vec<RefInfo>, GitError> {
-    let format_arg = "--format=%(refname)%00%(refname:short)%00%(objectname)%00%(upstream:short)%00%(upstream:track,nobracket)%00%(HEAD)%00%(symref)";
+    let format_arg = "--format=%(refname)%00%(refname:short)%00%(objectname)%00%(upstream:short)%00%(upstream:track,nobracket)%00%(HEAD)%00%(symref)%00%(creatordate:unix)%00%(authorname)%(taggername)%00%(contents:subject)";
     let out = cli.exec(
         repo_path,
         &[
@@ -82,6 +87,17 @@ pub fn list_refs(cli: &GitCli, repo_path: &Path) -> Result<Vec<RefInfo>, GitErro
             Some(fields[6].to_string())
         };
 
+        let non_empty = |i: usize| {
+            fields
+                .get(i)
+                .map(|f| f.trim())
+                .filter(|f| !f.is_empty())
+                .map(str::to_string)
+        };
+        let date = non_empty(7).and_then(|d| d.parse().ok());
+        let author = non_empty(8);
+        let subject = non_empty(9);
+
         let kind = if full_name.starts_with("refs/heads/") {
             RefKind::Local
         } else if full_name.starts_with("refs/remotes/") {
@@ -102,6 +118,9 @@ pub fn list_refs(cli: &GitCli, repo_path: &Path) -> Result<Vec<RefInfo>, GitErro
             behind,
             is_head,
             symref_target,
+            date,
+            author,
+            subject,
         });
     }
 

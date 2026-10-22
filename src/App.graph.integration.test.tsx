@@ -51,6 +51,6 @@ describe("app graph tab smoke", () => {
     });
 
     expect(container.querySelector("canvas")).toBeTruthy();
-    expect(screen.getByText("Go to HEAD")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Go to HEAD" })).toBeInTheDocument();
   });
 });

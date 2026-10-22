@@ -180,6 +180,9 @@ pub struct AppRefInfo {
     pub ahead: u32,
     pub behind: u32,
     pub is_head: bool,
+    pub date: Option<u32>,
+    pub author: Option<String>,
+    pub subject: Option<String>,
 }
 
 impl From<git_read::RefInfo> for AppRefInfo {
@@ -193,6 +196,9 @@ impl From<git_read::RefInfo> for AppRefInfo {
             ahead: r.ahead,
             behind: r.behind,
             is_head,
+            date: None,
+            author: None,
+            subject: None,
         }
     }
 }
@@ -215,6 +221,9 @@ impl From<git_core::RefInfo> for AppRefInfo {
             ahead: r.ahead,
             behind: r.behind,
             is_head,
+            date: r.date,
+            author: r.author,
+            subject: r.subject,
         }
     }
 }

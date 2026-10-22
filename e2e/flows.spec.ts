@@ -43,9 +43,7 @@ test.describe("vsc_git core user flows (web mock)", () => {
     await graphNavBtn.click();
 
     // 2. Graph view opens and commit rows are rendered
-    await expect(
-      page.getByPlaceholder("Search commits, authors, shas... (Press '/')")
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("button", { name: "Refresh Git Graph" })).toBeVisible({ timeout: 10000 });
     const commitRow = page.locator("[data-sha]").first();
     await expect(commitRow).toBeVisible({ timeout: 10000 });
 

@@ -58,22 +58,27 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
 
+      // Uncommitted changes sit on HEAD's lane, joined to HEAD by a dashed line.
+      const headIndex = hasDirtyRow ? commits.findIndex((c) => c.refs.some((r) => r.kind === "Head")) : -1;
+      const headRow = headIndex >= 0 ? rows[headIndex] : undefined;
+      const dirtyCol = headRow?.col ?? 0;
+
       for (const item of virtualItems) {
         const itemIndex = item.index;
         const rowTop = item.start - scrollTop;
 
         // Dirty row at index 0 if uncommitted changes exist
         if (hasDirtyRow && itemIndex === 0) {
-          const colX = getLaneX(0);
+          const colX = getLaneX(dirtyCol);
           const centerY = rowTop + ROW_HEIGHT * 0.5;
 
-          // Outgoing line to next commit
-          if (rows.length > 0) {
-            ctx.strokeStyle = getLaneColor(0, isLight);
-            ctx.setLineDash([3, 2]);
+          // Dashed line down to the HEAD commit (row headIndex + 1 on screen).
+          if (headRow) {
+            ctx.strokeStyle = getLaneColor(headRow.color, isLight);
+            ctx.setLineDash([3, 3]);
             ctx.beginPath();
             ctx.moveTo(colX, centerY);
-            ctx.lineTo(colX, rowTop + ROW_HEIGHT);
+            ctx.lineTo(colX, centerY + (headIndex + 1) * ROW_HEIGHT);
             ctx.stroke();
             ctx.setLineDash([]);
           }
@@ -95,22 +100,16 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         const row = rows[dataIndex];
         const commit = commits[dataIndex];
 
-        // Check if there is an incoming straight connection from the row above
-        let hasIncoming = false;
-        if (dataIndex > 0 && dataIndex - 1 < rows.length) {
-          const prevRow = rows[dataIndex - 1];
-          hasIncoming = prevRow.edges.some(
-            (e) =>
-              (e.kind === "Straight" && e.from_col === row.col) ||
-              (e.kind === "BranchOut" && e.to_col === row.col)
-          );
-        } else if (dataIndex === 0 && hasDirtyRow) {
-          // Connected from uncommitted row above
-          hasIncoming = true;
-        }
+        // A lane coming straight down into this node (branch-out and merge
+        // curves draw their own way in).
+        const prevRow = dataIndex > 0 ? rows[dataIndex - 1] : undefined;
+        const hasIncoming = !!prevRow?.edges.some((e) => e.kind === "Straight" && e.from_col === row.col);
 
         // Compute path geometry for this row relative to item.start
-        const geom = computeRowGeometry(row, 0, hasIncoming);
+        const geom = computeRowGeometry(row, 0, hasIncoming, ROW_HEIGHT, undefined, {
+          prev: prevRow,
+          next: rows[dataIndex + 1],
+        });
         const yOffset = rowTop;
 
         // Draw edge paths

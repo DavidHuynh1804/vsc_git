@@ -915,6 +915,9 @@ export class TauriScmDataSource implements ScmDataSource {
           ahead: r.ahead,
           behind: r.behind,
           targetOid: r.target_sha,
+          date: r.date,
+          author: r.author,
+          subject: r.subject,
         });
         if (r.is_head) {
           head = r.name;
@@ -928,6 +931,9 @@ export class TauriScmDataSource implements ScmDataSource {
           kind: "remote",
           remote: remoteName,
           targetOid: r.target_sha,
+          date: r.date,
+          author: r.author,
+          subject: r.subject,
         });
       } else if (r.kind === "Tag") {
         tags.push({
@@ -935,6 +941,9 @@ export class TauriScmDataSource implements ScmDataSource {
           fullName: `refs/tags/${r.name}`,
           kind: "tag",
           targetOid: r.target_sha,
+          date: r.date,
+          author: r.author,
+          subject: r.subject,
         });
       }
     }

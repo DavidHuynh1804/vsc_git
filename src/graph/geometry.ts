@@ -96,6 +96,11 @@ export function calculateStraightPath(
   };
 }
 
+/**
+ * A lane that closes into this row's commit. The curve spans a full row, from
+ * the lane at the previous row's center to this row's node, like Git Graph's
+ * S-shaped connectors (the previous row stops that lane at its center).
+ */
 export function calculateMergeInPath(
   fromCol: number,
   toCol: number,
@@ -107,16 +112,19 @@ export function calculateMergeInPath(
   const toX = getLaneX(toCol, laneWidth);
   const { top, center } = getRowBounds(rowIndex, rowHeight);
 
-  const midY = top + (center - top) * 0.5;
   return {
     type: "bezier",
-    from: { x: fromX, y: top },
-    cp1: { x: fromX, y: midY },
-    cp2: { x: toX, y: midY },
+    from: { x: fromX, y: center - rowHeight },
+    cp1: { x: fromX, y: top },
+    cp2: { x: toX, y: top },
     to: { x: toX, y: center },
   };
 }
 
+/**
+ * A secondary parent leaving this row's node. The curve ends at the next
+ * row's center on the parent's lane (the next row starts that lane there).
+ */
 export function calculateBranchOutPath(
   fromCol: number,
   toCol: number,
@@ -128,14 +136,37 @@ export function calculateBranchOutPath(
   const toX = getLaneX(toCol, laneWidth);
   const { center, bottom } = getRowBounds(rowIndex, rowHeight);
 
-  const midY = center + (bottom - center) * 0.5;
   return {
     type: "bezier",
     from: { x: fromX, y: center },
-    cp1: { x: fromX, y: midY },
-    cp2: { x: toX, y: midY },
-    to: { x: toX, y: bottom },
+    cp1: { x: fromX, y: bottom },
+    cp2: { x: toX, y: bottom },
+    to: { x: toX, y: center + rowHeight },
   };
+}
+
+/** Neighbouring rows, so straight lanes can stop where a curve takes over. */
+export interface RowNeighbors {
+  prev?: GraphRow;
+  next?: GraphRow;
+}
+
+function hasStraight(row: GraphRow | undefined, col: number): boolean {
+  return !!row?.edges.some((e) => e.kind === "Straight" && e.from_col === col);
+}
+
+/** Lane `col` starts in this row because the previous row branched out into it. */
+function opensFromAbove(prev: GraphRow | undefined, col: number): boolean {
+  return (
+    !!prev &&
+    prev.edges.some((e) => e.kind === "BranchOut" && e.to_col === col) &&
+    !hasStraight(prev, col)
+  );
+}
+
+/** Lane `col` ends in the next row by merging into that row's commit. */
+function closesBelow(next: GraphRow | undefined, col: number): boolean {
+  return !!next?.edges.some((e) => e.kind === "MergeIn" && e.from_col === col);
 }
 
 export function calculateEdgePath(
@@ -143,23 +174,24 @@ export function calculateEdgePath(
   commitCol: number,
   rowIndex: number,
   rowHeight = ROW_HEIGHT,
-  laneWidth = LANE_WIDTH
-): PathSegment {
+  laneWidth = LANE_WIDTH,
+  neighbors: RowNeighbors = {}
+): PathSegment | null {
   if (edge.kind === "MergeIn") {
     return calculateMergeInPath(edge.from_col, edge.to_col, rowIndex, rowHeight, laneWidth);
   }
   if (edge.kind === "BranchOut") {
     return calculateBranchOutPath(edge.from_col, edge.to_col, rowIndex, rowHeight, laneWidth);
   }
-  // Straight: if it is the commit's own lane, it connects to bottom (outgoing to first parent)
+  // Straight: the commit's own lane leaves the node downwards (to its first
+  // parent); other lanes pass through the whole row.
+  const x = getLaneX(edge.from_col, laneWidth);
+  const { top, center, bottom } = getRowBounds(rowIndex, rowHeight);
   const isCommitLane = edge.from_col === commitCol;
-  return calculateStraightPath(
-    edge.from_col,
-    rowIndex,
-    isCommitLane ? "bottom" : "full",
-    rowHeight,
-    laneWidth
-  );
+  const startY = isCommitLane || opensFromAbove(neighbors.prev, edge.from_col) ? center : top;
+  const endY = closesBelow(neighbors.next, edge.from_col) ? center : bottom;
+  if (endY <= startY) return null;
+  return { type: "line", from: { x, y: startY }, to: { x, y: endY } };
 }
 
 export function calculateNodePosition(
@@ -185,7 +217,8 @@ export function computeRowGeometry(
   rowIndex: number,
   hasIncomingStraight: boolean,
   rowHeight = ROW_HEIGHT,
-  laneWidth = LANE_WIDTH
+  laneWidth = LANE_WIDTH,
+  neighbors: RowNeighbors = {}
 ): ComputedRowGeometry {
   const edgeSegments: { segment: PathSegment; color: number }[] = [];
 
@@ -198,7 +231,8 @@ export function computeRowGeometry(
   }
 
   for (const edge of row.edges) {
-    const segment = calculateEdgePath(edge, row.col, rowIndex, rowHeight, laneWidth);
+    const segment = calculateEdgePath(edge, row.col, rowIndex, rowHeight, laneWidth, neighbors);
+    if (!segment) continue;
     edgeSegments.push({
       segment,
       color: edge.color,
@@ -210,4 +244,17 @@ export function computeRowGeometry(
     nodeCenter: calculateNodePosition(row.col, rowIndex, rowHeight, laneWidth),
     nodeColor: row.color,
   };
+}
+
+/** Width the graph column needs to show every lane of `rows`. */
+export function graphWidthFor(rows: GraphRow[], laneWidth = LANE_WIDTH, margin = GRAPH_LEFT_MARGIN): number {
+  let maxCol = 0;
+  for (const row of rows) {
+    if (row.col > maxCol) maxCol = row.col;
+    for (const e of row.edges) {
+      if (e.from_col > maxCol) maxCol = e.from_col;
+      if (e.to_col > maxCol) maxCol = e.to_col;
+    }
+  }
+  return margin * 2 + (maxCol + 1) * laneWidth;
 }

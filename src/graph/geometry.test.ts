@@ -7,6 +7,8 @@ import {
   calculateStraightPath,
   computeRowGeometry,
   getLaneX,
+  graphWidthFor,
+  GRAPH_LEFT_MARGIN,
   getRowBounds,
   LANE_WIDTH,
   ROW_HEIGHT,
@@ -59,11 +61,12 @@ describe("graph geometry and path coordinate calculations", () => {
 
     const merge = calculateMergeInPath(1, 0, rowIndex);
     expect(merge.type).toBe("bezier");
-    expect(merge.from).toEqual({ x: fromX, y: 48 });
+    // Spans a full row: previous row center (36) -> this row center (60),
+    // bending around the row boundary (48).
+    expect(merge.from).toEqual({ x: fromX, y: 36 });
     expect(merge.to).toEqual({ x: toX, y: 60 });
-    // Midpoint Y between 48 and 60 is 54
-    expect(merge.cp1).toEqual({ x: fromX, y: 54 });
-    expect(merge.cp2).toEqual({ x: toX, y: 54 });
+    expect(merge.cp1).toEqual({ x: fromX, y: 48 });
+    expect(merge.cp2).toEqual({ x: toX, y: 48 });
   });
 
   it("calculates BranchOut bezier curve coordinates accurately", () => {
@@ -73,11 +76,11 @@ describe("graph geometry and path coordinate calculations", () => {
 
     const branch = calculateBranchOutPath(0, 1, rowIndex);
     expect(branch.type).toBe("bezier");
+    // Spans a full row: this row center (12) -> next row center (36).
     expect(branch.from).toEqual({ x: fromX, y: 12 });
-    expect(branch.to).toEqual({ x: toX, y: 24 });
-    // Midpoint Y between 12 and 24 is 18
-    expect(branch.cp1).toEqual({ x: fromX, y: 18 });
-    expect(branch.cp2).toEqual({ x: toX, y: 18 });
+    expect(branch.to).toEqual({ x: toX, y: 36 });
+    expect(branch.cp1).toEqual({ x: fromX, y: 24 });
+    expect(branch.cp2).toEqual({ x: toX, y: 24 });
   });
 
   it("calculates node circle position at row center", () => {
@@ -92,21 +95,21 @@ describe("graph geometry and path coordinate calculations", () => {
       0,
       1
     );
-    expect(straightEdge.type).toBe("line");
+    expect(straightEdge?.type).toBe("line");
 
     const mergeEdge = calculateEdgePath(
       { from_col: 1, to_col: 0, kind: "MergeIn", color: 2 },
       0,
       1
     );
-    expect(mergeEdge.type).toBe("bezier");
+    expect(mergeEdge?.type).toBe("bezier");
 
     const branchEdge = calculateEdgePath(
       { from_col: 0, to_col: 1, kind: "BranchOut", color: 3 },
       0,
       1
     );
-    expect(branchEdge.type).toBe("bezier");
+    expect(branchEdge?.type).toBe("bezier");
   });
 
   it("computes row geometry with multiple edges and incoming straight edge", () => {
@@ -127,5 +130,49 @@ describe("graph geometry and path coordinate calculations", () => {
     expect(geom.edgeSegments).toHaveLength(5);
     expect(geom.nodeCenter).toEqual({ x: getLaneX(0), y: 36 });
     expect(geom.nodeColor).toBe(0);
+  });
+
+  it("stops passing lanes where a branch-out or merge curve takes over", () => {
+    const prev: GraphRow = {
+      sha: "p",
+      col: 0,
+      color: 0,
+      edges: [
+        { from_col: 0, to_col: 0, kind: "Straight", color: 0 },
+        { from_col: 0, to_col: 1, kind: "BranchOut", color: 1 },
+      ],
+    };
+    const row: GraphRow = {
+      sha: "r",
+      col: 0,
+      color: 0,
+      edges: [
+        { from_col: 0, to_col: 0, kind: "Straight", color: 0 },
+        { from_col: 1, to_col: 1, kind: "Straight", color: 1 },
+      ],
+    };
+    const next: GraphRow = {
+      sha: "n",
+      col: 0,
+      color: 0,
+      edges: [{ from_col: 1, to_col: 0, kind: "MergeIn", color: 1 }],
+    };
+
+    // Lane 1 opens from prev's curve (ends at our center) and closes into next's node
+    // (curve starts at our center), so nothing straight is left to draw for it.
+    const geom = computeRowGeometry(row, 1, true, ROW_HEIGHT, undefined, { prev, next });
+    const lane1 = geom.edgeSegments.filter((s) => s.color === 1);
+    expect(lane1).toHaveLength(0);
+
+    // Without neighbors lane 1 passes through the full row.
+    const plain = computeRowGeometry(row, 1, true);
+    expect(plain.edgeSegments.filter((s) => s.color === 1)).toHaveLength(1);
+  });
+
+  it("sizes the graph column to the widest lane", () => {
+    const rows: GraphRow[] = [
+      { sha: "a", col: 0, color: 0, edges: [{ from_col: 0, to_col: 4, kind: "BranchOut", color: 0 }] },
+    ];
+    expect(graphWidthFor(rows)).toBe(GRAPH_LEFT_MARGIN * 2 + 5 * LANE_WIDTH);
   });
 });
